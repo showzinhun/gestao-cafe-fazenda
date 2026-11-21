@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { certificadosDaFazenda, certificadosHerdados, comporTalhoes, conferirCertificadosEscolhidos, equivalentes, saldoLivre, type Composicao } from '@/dominio/lote';
 import { calcularResultado, type ParametrosResultado } from '@/dominio/resultados';
+import { divergenciaCarga } from '@/dominio/colheita';
 import { qtd } from '@/dominio/quantidade';
 import { auditar } from './auditoria';
 import { comTransacao, ehUuid, exigir, type Contexto, type Tx } from './transacao';
@@ -41,6 +42,10 @@ const cargaSchema = z.object({
   localId: idOpcional,
   turnoId: idOpcional,
   observacao: texto(),
+  /** Apontamentos do dia e talhão que compõem a carga (§6.2). Colheita mecânica não tem. */
+  apontamentoIds: z.array(id).default([]),
+  tipoTransporte: texto(60),
+  operadorMaquina: texto(120),
 });
 
 /** Cada carga gera um movimento COLHEITA já processado com 1 lote, 100% do talhão (§6.2, RN-09). */
@@ -83,8 +88,33 @@ export async function registrarCarga(ctx: Contexto, entrada: z.input<typeof carg
     await tx.loteTalhao.create({ data: { empresaId: ctx.empresaId, loteId: lote.id, talhaoId: talhao.id, percentual: '1', quantidadeEquivalente: q } });
     const certs = certificadosDaFazenda(d.fazendaId, await certificadosDeFazendas(tx, [d.fazendaId]), dataLocal(quando));
     if (certs.size) await tx.loteCertificado.createMany({ data: [...certs].map((c) => ({ empresaId: ctx.empresaId, loteId: lote.id, certificadoId: c })) });
-    await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'CARGA', depois: { etapa: etapa.codigo, numero, talhao: talhao.codigo, quantidade: q, lote: codigo } });
-    return { movimento: mov, lote };
+
+    // Carga (§6.2): ligada aos apontamentos do dia e talhão, com a divergência medido − apontado.
+    const dia = dataLocal(quando);
+    const ids = [...new Set(d.apontamentoIds)];
+    const apontamentos = ids.length ? await tx.apontamento.findMany({ where: { id: { in: ids } }, include: { cargas: { include: { carga: { include: { movimento: { select: { status: true } } } } } } } }) : [];
+    if (apontamentos.length !== ids.length) throw new ErroNaoEncontrado('Apontamento não encontrado.');
+    for (const a of apontamentos) {
+      if (a.status === 'CANCELADO') throw new ErroValidacao('Há apontamento cancelado na carga.');
+      if (a.talhaoId !== talhao.id || a.data.toISOString().slice(0, 10) !== dia)
+        throw new ErroValidacao('Os apontamentos da carga precisam ser do mesmo talhão e do mesmo dia.');
+      if (a.cargas.some((c) => c.carga.movimento.status !== 'ESTORNADO')) throw new ErroValidacao('Um dos apontamentos já está em outra carga.');
+    }
+    const apontadas = apontamentos.reduce((s, a) => s.plus(dec(a.medidas)), new Decimal(0));
+    const empresa = await tx.empresa.findFirst({ where: { id: ctx.empresaId }, select: { configuracoes: true } });
+    const limite = String((empresa?.configuracoes as Record<string, unknown> | null)?.limite_divergencia_carga ?? '0.05');
+    const div = divergenciaCarga(q, apontadas, limite);
+    const carga = await tx.cargaColheita.create({
+      data: {
+        empresaId: ctx.empresaId, data: new Date(`${dia}T00:00:00Z`), fazendaId: d.fazendaId, talhaoId: talhao.id, safraId: safra.id, tipoCafeId: tipo.id,
+        tipoColheita: d.modoColheita, tipoTransporte: d.tipoTransporte, operadorMaquina: d.operadorMaquina, medidasMedidas: q, medidasApontadas: apontadas.toFixed(3),
+        divergencia: div.diferenca.toFixed(3), divergenciaPerc: div.perc?.toFixed(6) ?? null, alertaDivergencia: div.alerta, movimentoId: mov.id, criadoPor: ctx.usuarioId,
+      },
+    });
+    if (ids.length) await tx.cargaApontamento.createMany({ data: ids.map((apontamentoId) => ({ empresaId: ctx.empresaId, cargaId: carga.id, apontamentoId })) });
+    await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'CARGA', depois: { etapa: etapa.codigo, numero, talhao: talhao.codigo, quantidade: q, lote: codigo, apontadas: apontadas.toFixed(3), divergencia: div.diferenca.toFixed(3) } });
+    const alertas: Alerta[] = div.alerta ? [{ codigo: 'DIVERGENCIA', mensagem: `Divergência de ${div.diferenca.toFixed(3)} medidas (${div.perc!.times(100).toFixed(1)}%) entre o medido e o apontado.` }] : [];
+    return { movimento: mov, lote, carga, alertas };
   });
 }
 

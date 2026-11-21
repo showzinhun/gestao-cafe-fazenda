@@ -26,6 +26,7 @@ export default defineConfig({
       DIRECT_URL: env.TEST_DIRECT_URL ?? 'postgresql://postgres:postgres@localhost:5432/cafe_test',
       AUTH_SECRET: env.AUTH_SECRET ?? 'e2e-segredo-somente-para-testes-0123456789',
       AUTH_TRUST_HOST: 'true',
+      DADOS_PESSOAIS_CHAVE: env.TEST_DADOS_PESSOAIS_CHAVE ?? 'dGVzdGUtY2hhdmUtZmljdGljaWEtMzItYnl0ZXMhISE=',
       AUTH_URL: `http://localhost:${PORTA}`,
     },
   },

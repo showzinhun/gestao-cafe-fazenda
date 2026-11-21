@@ -77,6 +77,15 @@ Para ver as telas com dados no banco de desenvolvimento, rode os passos 3–8 do
 npx tsx --env-file=.env scripts/demo-cenario.ts
 ```
 
+## Colhedores, app de campo e pagamento (Fase 4)
+
+- **Colhedores e turmas** (`/colheita/colhedores`): CPF e PIX cifrados e mascarados; "Revelar" só para FINANCEIRO e ADMIN, e cada revelação vai para a auditoria (§3.3). Defina `DADOS_PESSOAIS_CHAVE` em produção (`openssl rand -base64 32`).
+- **App de campo** (`/campo/apontar`, celular): funciona sem sinal (IndexedDB/Dexie). Cada registro tem UUID do aparelho e sincroniza por `POST /api/campo/sync`, de forma idempotente (RN-23).
+- **Cargas** (`/colheita`): ligadas aos apontamentos do dia e do talhão, com a divergência medido − apontado.
+- **Pagamentos** (`/pagamentos`): abrir o período, lançar adiantamentos e descontos, fechar (o preço fica congelado, RN-20), pagar, baixar a lista PIX (CSV) e os recibos (PDF). Relatório de produção em `/pagamentos/producao`.
+
+Usuários fictícios novos no seed: `apontador@alfa.exemplo` (APONTADOR, fazenda NS) e `financeiro@alfa.exemplo` (FINANCEIRO).
+
 ## Testes
 
 ```bash

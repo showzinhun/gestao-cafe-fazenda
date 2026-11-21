@@ -32,6 +32,8 @@ jobs:
       APP_DB_PASSWORD: cafe_app_ci
       AUTH_SECRET: segredo-somente-para-o-ci-0123456789abcdef
       AUTH_TRUST_HOST: "true"
+      # Chave fictícia de CI para os dados pessoais cifrados (§3.3).
+      DADOS_PESSOAIS_CHAVE: dGVzdGUtY2hhdmUtZmljdGljaWEtMzItYnl0ZXMhISE=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

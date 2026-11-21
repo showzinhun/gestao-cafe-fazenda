@@ -1,3 +1,6 @@
+import { cifrar, impressao } from '../src/lib/cripto';
+import { mascararCpf, mascararPix } from '../src/dominio/colheita';
+import { soDigitos } from '../src/dominio/documentos';
 /**
  * Seed com dados fictícios (regra 13): empresas Alfa (modelo Via úmida) e Beta (Simplificado), cenário §15 Preparação.
  * Roda com o dono das tabelas (DIRECT_URL), fora da RLS. Pode rodar mais de uma vez.
@@ -75,6 +78,21 @@ async function main() {
   const safraAlfa = (await db.safra.findUnique({ where: { empresaId_codigo: { empresaId: alfa, codigo: SEED.safra.codigo } } }))!.id;
   if (!(await db.tabelaPrecoColheita.findFirst({ where: { empresaId: alfa, fazendaId: ns } }))) {
     await db.tabelaPrecoColheita.create({ data: { empresaId: alfa, fazendaId: ns, safraId: safraAlfa, tipoColheita: 'MANUAL', valorPorMedida: '12.00', vigenciaInicio: new Date(SEED.safra.dataInicio) } });
+  }
+  // §15: acessos por fazenda, turma A e colhedores (CPF e PIX cifrados, §3.3).
+  for (const [usuarioId, fazendaId] of SEED.acessos) {
+    await db.usuarioFazenda.upsert({ where: { usuarioId_fazendaId: { usuarioId, fazendaId } }, update: {}, create: { usuarioId, fazendaId, empresaId: alfa } });
+  }
+  for (const t of SEED.turmas) {
+    await db.turma.upsert({ where: { id: t.id }, update: {}, create: { id: t.id, empresaId: alfa, fazendaId: t.fazenda, nome: t.nome, responsavel: t.responsavel } });
+  }
+  for (const c of SEED.colhedores) {
+    const cpf = soDigitos(c.cpf);
+    await db.colhedor.upsert({
+      where: { id: c.id },
+      update: {},
+      create: { id: c.id, empresaId: alfa, turmaId: c.turma, nome: c.nome, apelido: c.apelido, cpfCifrado: cifrar(cpf), cpfMascara: mascararCpf(cpf), cpfHash: impressao(`cpf:${cpf}`), pixCifrado: cifrar(c.pix), pixMascara: mascararPix(c.pix) },
+    });
   }
   // §15: RFA válido para NS; AAA inexistente.
   const rfa = await db.certificado.findFirstOrThrow({ where: { empresaId: alfa, codigo: 'RFA' } });
