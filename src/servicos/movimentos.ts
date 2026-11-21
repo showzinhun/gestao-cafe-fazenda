@@ -592,3 +592,11 @@ export async function obterMovimento(ctx: Contexto, movimentoId: string) {
     return mov;
   });
 }
+
+/** DELETE /api/movimentos/{id}/entradas/{entradaId} (§14). */
+export async function removerEntradaPorId(ctx: Contexto, movimentoId: string, entradaId: string) {
+  if (!ehUuid(movimentoId) || !ehUuid(entradaId)) throw new ErroNaoEncontrado('Entrada não encontrada.');
+  const e = await comTransacao(ctx, (tx) => tx.movimentoEntrada.findFirst({ where: { id: entradaId, movimentoId, cancelada: false }, select: { loteId: true } }));
+  if (!e) throw new ErroNaoEncontrado('Entrada não encontrada.');
+  return removerEntrada(ctx, movimentoId, e.loteId);
+}
