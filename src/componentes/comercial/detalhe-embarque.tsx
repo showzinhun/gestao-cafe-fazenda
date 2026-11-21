@@ -3,15 +3,15 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
-import { FileText } from 'lucide-react';
-import { acaoCancelarNota, acaoCarregar, acaoDesprogramar, acaoFinalizarEmbarque, acaoLogistica, acaoNota, acaoProgramar, acaoReabrirEmbarque } from '@/app/(app)/comercial/acoes';
+import { FileText, FileJson, Map as Mapa, Sheet } from 'lucide-react';
+import { acaoCancelarNota, acaoCarregar, acaoDesprogramar, acaoFinalizarEmbarque, acaoGerarDossie, acaoLogistica, acaoNota, acaoProgramar, acaoReabrirEmbarque, acaoReemitirPacote } from '@/app/(app)/comercial/acoes';
 import type { obterEmbarque } from '@/servicos/embarques';
 import { Botao, estiloBotao } from '@/componentes/ui/botao';
 import { Campo, Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
 import { Aviso } from '@/componentes/ui/aviso';
 import { Indicador } from '@/componentes/ui/cartao';
-import { ConfirmarComMotivo, Documentos, LinhaDoTempo, SeloSituacao, num } from '@/componentes/operacao/comum';
+import { ConfirmarComMotivo, Documentos, LinhaDoTempo, SeloSituacao, dataHora, num } from '@/componentes/operacao/comum';
 import type { LoteLivre } from './reservar-lotes';
 import { paraApi } from '@/lib/formatos';
 
@@ -67,12 +67,12 @@ export function DetalheEmbarque({ e, lotes, motoristas, pode }: { e: E; lotes: L
             {fase === 'carregar' && pode.programar ? <span className="ml-auto"><ConfirmarComMotivo rotulo="Desfazer programação" titulo="Desfazer a programação?" explicacao="As reservas do embarque são canceladas e os kg voltam a ficar livres." pendente={pendente} perigo={false} aoConfirmar={(m) => rodar(() => acaoDesprogramar(e.id, m))} /></span> : null}
           </div>
           <table className="w-full border-collapse text-[13px] [&_td]:px-2 [&_th]:px-2">
-            <thead><tr className="text-left font-mono text-[10.5px] tracking-wider text-tinta-2 uppercase"><th className="py-1.5">Lote</th><th>Peneira</th>{carregado ? <th>Certificação</th> : null}<th className="text-right">kg</th></tr></thead>
+            <thead><tr className="text-left font-mono text-[10.5px] tracking-wider text-tinta-2 uppercase"><th className="py-1.5">Lote</th><th>Peneira</th><th>Certificação</th><th className="text-right">kg</th></tr></thead>
             <tbody>
-              {(carregado ? e.entradas : e.programacao.map((p) => ({ ...p, certificados: [] as string[] }))).map((l) => (
+              {(carregado ? e.entradas : e.programacao.map((p) => ({ ...p, certificados: p.certificados.map((c) => c.codigo) }))).map((l) => (
                 <tr key={l.id} className="border-t border-linha">
                   <td className="py-1.5"><Link href={`/rastreabilidade/lote/${l.loteId}`} className="font-mono font-semibold text-destaque hover:underline">{l.lote}</Link></td>
-                  <td>{l.peneira ? `P${l.peneira}` : '—'}</td>{carregado ? <td>{l.certificados.join(', ') || '—'}</td> : null}
+                  <td>{l.peneira ? `P${l.peneira}` : '—'}</td><td>{l.certificados.join(', ') || '—'}</td>
                   <td className="text-right font-mono">{num(l.quantidade)}</td>
                 </tr>
               ))}
@@ -92,11 +92,17 @@ export function DetalheEmbarque({ e, lotes, motoristas, pode }: { e: E; lotes: L
             <Item r="Bruto / tara" v={`${num(e.carregamento.pesoBruto ?? '0')} / ${num(e.carregamento.tara ?? '0')} kg`} />
             <Item r="Diferença" v={`${num(e.carregamento.diferencaKg ?? '0')} kg (${new Decimal(e.carregamento.diferencaPerc ?? 0).times(100).toFixed(2).replace('.', ',')}%)`} />
             {e.carregamento.motivoDiferenca ? <Item r="Motivo da diferença" v={e.carregamento.motivoDiferenca} /> : null}
+            <Item r="Vendido como" v={e.venda.rotulo ?? '—'} />
           </dl>
+          {e.venda.rebaixamentos.length ? (
+            <Aviso tipo="aviso">Rebaixamento (RN-28): {e.venda.rebaixamentos.map((r) => `${r.lote ?? 'lote'} perde ${r.perdidos.join(', ')} em ${num(r.kg)} kg`).join('; ')}. Motivo: {e.venda.rebaixamentos[0]!.motivo}</Aviso>
+          ) : null}
         </section>
       ) : null}
 
       {carregado ? <Notas e={e} pode={pode.programar} pendente={pendente} rodar={rodar} /> : null}
+      {carregado ? <Dossie e={e} pode={pode.programar} pendente={pendente} rodar={rodar} /> : null}
+      {e.pacotes.length ? <Pacotes e={e} pode={pode.finalizar} pendente={pendente} rodar={rodar} /> : null}
       <Logistica e={e} pode={pode.programar} pendente={pendente} rodar={rodar} />
 
       <section className="sombra grid gap-2 rounded-xl border border-linha bg-superficie p-4">
@@ -151,6 +157,11 @@ function Programar({ e, lotes, pendente, rodar }: { e: E; lotes: LoteLivre[]; pe
 }
 
 function Carregar({ e, motoristas, pendente, rodar }: { e: E; motoristas: { id: string; nome: string; placa: string | null }[]; pendente: boolean; rodar: Rodar }) {
+  // Vender como (RN-28): só o que todos os lotes têm; desmarcar = rebaixamento, com motivo.
+  const todos = [...new Map(e.programacao.flatMap((p) => p.certificados).map((c) => [c.id, c])).values()].sort((a, b) => a.codigo.localeCompare(b.codigo));
+  const comuns = todos.filter((c) => e.programacao.every((p) => p.certificados.some((x) => x.id === c.id)));
+  const [vendidos, setVendidos] = useState<string[]>(comuns.map((c) => c.id));
+  const perde = e.programacao.filter((p) => p.certificados.some((c) => !vendidos.includes(c.id)));
   const [placa, setPlaca] = useState('');
   const [bruto, setBruto] = useState('');
   const [tara, setTara] = useState('');
@@ -169,7 +180,7 @@ function Carregar({ e, motoristas, pendente, rodar }: { e: E; motoristas: { id: 
       const v = (k: string) => String(f.get(k) ?? '').trim();
       rodar(() => acaoCarregar(e.id, {
         motoristaId: v('motoristaId') || null, placa, lacres: v('lacres').split(/[,;\s]+/).filter(Boolean), pesoBruto: paraApi(bruto), tara: paraApi(tara),
-        motivoDiferenca: v('motivo') || null, dataEmbarque: v('dataEmbarque') || null,
+        motivoDiferenca: v('motivo') || null, dataEmbarque: v('dataEmbarque') || null, certificadosVendidos: vendidos, motivoRebaixamento: v('motivoRebaixamento') || null,
       }));
     }}>
       <h2 className="font-display text-[17px] font-semibold">2. Carregamento</h2>
@@ -185,6 +196,24 @@ function Carregar({ e, motoristas, pendente, rodar }: { e: E; motoristas: { id: 
         <p className="text-[13px]">Líquido <b className="font-mono">{num(previa.liquido.toFixed(3))} kg</b> · programado {num(e.programadoKg)} kg · diferença <b className="font-mono">{num(previa.dif.toFixed(3))} kg ({previa.perc.toFixed(2).replace('.', ',')}%)</b></p>
       ) : null}
       <Campo rotulo="Motivo da diferença" dica="obrigatório se a diferença passar do limite (RN-27)"><Entrada name="motivo" /></Campo>
+      <fieldset className="grid gap-2">
+        <legend className="mb-1 text-[13px] font-semibold">Vender como</legend>
+        <div className="flex flex-wrap gap-2">
+          {todos.map((c) => {
+            const emTodos = comuns.some((x) => x.id === c.id);
+            return (
+              <label key={c.id} className="flex items-center gap-1.5 rounded-lg border border-linha px-2.5 py-1.5 text-[13px]" title={emTodos ? undefined : 'Nem todos os lotes têm este certificado'}>
+                <input type="checkbox" disabled={!emTodos} checked={vendidos.includes(c.id)} onChange={(ev) => setVendidos(ev.target.checked ? [...vendidos, c.id] : vendidos.filter((x) => x !== c.id))} /> {c.codigo}
+              </label>
+            );
+          })}
+          {!todos.length ? <span className="text-[13px] text-tinta-2">Lotes convencionais.</span> : null}
+        </div>
+        <p className="text-[12.5px] text-tinta-2">{vendidos.length ? `Vendido como ${todos.filter((c) => vendidos.includes(c.id)).map((c) => c.codigo).join(' + ')}.` : 'Vendido como convencional.'} {e.contrato.certificados.length ? `O contrato exige ${e.contrato.certificados.join(', ')}.` : ''}</p>
+        {perde.length ? (
+          <Campo rotulo="Motivo do rebaixamento *" dica={`${perde.map((p) => p.lote).join(', ')} perde(m) certificado (RN-28)`}><Entrada name="motivoRebaixamento" required minLength={5} /></Campo>
+        ) : null}
+      </fieldset>
       <Botao type="submit" className="justify-self-start" disabled={pendente}>Registrar carregamento</Botao>
     </form>
   );
@@ -248,5 +277,73 @@ function Logistica({ e, pode, pendente, rodar }: { e: E; pode: boolean; pendente
       </div>
       {pode && e.status !== 'ESTORNADO' ? <Botao type="submit" variante="secundario" className="justify-self-start" disabled={pendente}>Salvar logística</Botao> : null}
     </form>
+  );
+}
+
+function Dossie({ e, pode, pendente, rodar }: { e: E; pode: boolean; pendente: boolean; rodar: Rodar }) {
+  const d = e.dossie;
+  const base = `/api/embarques/${e.id}`;
+  return (
+    <section className="sombra grid gap-3 rounded-xl border border-linha bg-superficie p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-display text-[17px] font-semibold">Dossiê EUDR e certificações</h2>
+        {d ? <span className="text-[12.5px] text-tinta-2">versão {d.versao}{d.congelado ? ' · congelada na finalização' : ''} · SHA-256 <span className="font-mono">{d.hash.slice(0, 12)}…</span></span> : null}
+        {pode && e.status === 'ABERTO' ? <Botao className="ml-auto" variante="secundario" disabled={pendente} onClick={() => rodar(() => acaoGerarDossie(e.id))}>{d ? 'Gerar de novo' : 'Gerar dossiê'}</Botao> : null}
+      </div>
+      {!d ? <p className="text-[13px] text-tinta-2">Gere o dossiê para conferir a origem por talhão, as checagens e os certificados antes de finalizar.</p> : (
+        <>
+          {d.pendencias.length ? (
+            <Aviso tipo={e.contrato.exigeEudr ? 'erro' : 'aviso'}>
+              {d.pendencias.length} pendência(s){e.contrato.exigeEudr && e.status === 'ABERTO' ? ': o embarque não finaliza assim (RN-18).' : '.'}
+              <ul className="mt-1 list-disc pl-5">{d.pendencias.map((p) => <li key={p}>{p}</li>)}</ul>
+            </Aviso>
+          ) : <Aviso tipo="ok">Sem pendências.</Aviso>}
+          <table className="w-full border-collapse text-[13px] [&_td]:px-2 [&_th]:px-2">
+            <thead><tr className="text-left font-mono text-[10.5px] tracking-wider text-tinta-2 uppercase"><th className="py-1.5">Talhão</th><th className="text-right">kg</th><th className="text-right">%</th><th>Checagem</th></tr></thead>
+            <tbody>
+              {d.talhoes.map((t) => (
+                <tr key={t.fazenda + t.talhao} className="border-t border-linha">
+                  <td className="py-1.5 font-mono">{t.fazenda}/{t.talhao}</td><td className="text-right font-mono">{num(t.kg)}</td>
+                  <td className="text-right font-mono">{new Decimal(t.percentual).times(100).toFixed(2).replace('.', ',')}%</td><td>{t.checagem ? t.checagem.replace('_', ' ').toLowerCase() : 'sem checagem'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap gap-2">
+            <a href={`${base}/dossie.pdf`} target="_blank" rel="noreferrer" className={estiloBotao({ variante: 'secundario' })}><FileText className="size-4" /> Dossiê (PDF)</a>
+            <a href={`${base}/dossie.geojson`} className={estiloBotao({ variante: 'secundario' })}><Mapa className="size-4" /> GeoJSON</a>
+            <a href={`${base}/dossie.csv`} className={estiloBotao({ variante: 'secundario' })}><Sheet className="size-4" /> CSV</a>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function Pacotes({ e, pode, pendente, rodar }: { e: E; pode: boolean; pendente: boolean; rodar: Rodar }) {
+  const base = `/api/embarques/${e.id}`;
+  return (
+    <section className="sombra grid gap-3 rounded-xl border border-linha bg-superficie p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-display text-[17px] font-semibold">Pacote para a exportadora</h2>
+        <span className="text-[12.5px] text-tinta-2">Gerado na finalização (RN-30). Envie os dois arquivos; o conteúdo não muda.</span>
+        {pode && e.status === 'FINALIZADO' ? <span className="ml-auto"><ConfirmarComMotivo rotulo="Reemitir em nova versão" titulo="Reemitir o pacote?" explicacao="Gera uma nova versão com o estado atual; o hash muda. As versões anteriores ficam guardadas." perigo={false} pendente={pendente} aoConfirmar={(m) => rodar(() => acaoReemitirPacote(e.id, m))} /></span> : null}
+      </div>
+      <table className="w-full border-collapse text-[13px] [&_td]:px-2 [&_th]:px-2">
+        <thead><tr className="text-left font-mono text-[10.5px] tracking-wider text-tinta-2 uppercase"><th className="py-1.5">Versão</th><th>Emitido</th><th>SHA-256</th><th>Motivo</th><th /></tr></thead>
+        <tbody>
+          {e.pacotes.map((p) => (
+            <tr key={p.versao} className="border-t border-linha align-top">
+              <td className="py-2 font-mono font-semibold">v{p.versao}</td><td className="py-2">{dataHora(p.geradoEm)}</td>
+              <td className="py-2 font-mono text-[11.5px] break-all">{p.hash}</td><td className="py-2">{p.motivo ?? '—'}</td>
+              <td className="py-2 text-right whitespace-nowrap">
+                <a href={`${base}/pacote.json?versao=${p.versao}`} className="mr-3 inline-flex items-center gap-1 text-destaque hover:underline"><FileJson className="size-4" /> .json</a>
+                <a href={`${base}/pacote.geojson?versao=${p.versao}`} className="inline-flex items-center gap-1 text-destaque hover:underline"><Mapa className="size-4" /> .geojson</a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
