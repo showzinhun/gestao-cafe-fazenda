@@ -4,6 +4,7 @@ import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { saldoLivre } from '@/dominio/lote';
 import type { Permissao } from '@/dominio/perfis';
 import { auditar } from './auditoria';
+import { exigirContratoAtivo, validarLoteParaContrato } from './regras-contrato';
 import { comTransacao, ehUuid, exigir, type Contexto } from './transacao';
 import { dec, exigirFazendas, exigirMotivo, fazendasPermitidas, gravarLote, mapasFazenda, quantidadeSchema, travarLotes } from './rastreio-base';
 
@@ -41,6 +42,10 @@ export async function criarReserva(ctx: Contexto, entrada: z.input<typeof reserv
     if (lote.status === 'ESTORNADO') throw new ErroRegra('RN-05', `O lote ${lote.codigo} foi estornado.`);
     const fazendas = lote.fazendaId ? [lote.fazendaId] : [...(await mapasFazenda(tx, (await tx.loteTalhao.findMany({ where: { loteId: lote.id } })).map((t) => t.talhaoId))).doTalhao.values()];
     exigirFazendas(await fazendasPermitidas(tx, ctx), fazendas);
+    if (d.finalidade === 'CONTRATO') {
+      const { contrato } = await validarLoteParaContrato(tx, d.contratoId!, lote.id);
+      exigirContratoAtivo(contrato);
+    }
     if (d.movimentoId) {
       const mov = await tx.movimento.findFirst({ where: { id: d.movimentoId } });
       if (!mov) throw new ErroNaoEncontrado('Movimento não encontrado.');
@@ -57,6 +62,7 @@ export async function criarReserva(ctx: Contexto, entrada: z.input<typeof reserv
     });
     await gravarLote(tx, ctx, lote, { reservada: dec(lote.quantidadeReservada).plus(q) });
     await auditar(tx, ctx, { entidade: 'reserva', entidadeId: reserva.id, acao: 'CRIAR', depois: { lote: lote.codigo, quantidade: reserva.quantidade, finalidade: d.finalidade } });
+    if (d.contratoId) await tx.contrato.updateMany({ where: { id: d.contratoId, status: 'ASSINADO' }, data: { status: 'EM_EXECUCAO', alteradoPor: ctx.usuarioId } });
     return reserva;
   });
 }

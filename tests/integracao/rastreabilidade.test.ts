@@ -9,6 +9,7 @@ import { alterarUsuario } from '@/servicos/usuarios';
 import { abrirMovimento, adicionarEntradas, apagarResultados, estornarMovimento, finalizarSaida, lancarResultados, obterMovimento, reabrirSaida, registrarCarga, removerEntrada } from '@/servicos/movimentos';
 import { alterarLote, definirCertificadosLote, obterLote } from '@/servicos/lotes';
 import { cancelarReserva, criarReserva } from '@/servicos/reservas';
+import { assinarContrato, criarContrato } from '@/servicos/contratos';
 import { ErroNaoEncontrado, ErroRegra } from '@/dominio/erros';
 import { kgParaSacas } from '@/dominio/quantidade';
 import { SEED } from '../../prisma/dados-seed';
@@ -22,7 +23,8 @@ const NS = SEED.fazendas.find((f) => f.codigo === 'NS')!.id;
 const BV = SEED.fazendas.find((f) => f.codigo === 'BV')!.id;
 const T1 = SEED.talhoes.find((t) => t.codigo === 'T1')!.id;
 const T2 = SEED.talhoes.find((t) => t.codigo === 'T2')!.id;
-const CONTRATO = '0c000000-0000-4000-8000-000000000001'; // contrato fictício (o módulo comercial vem na Fase 5)
+let CONTRATO: string; // contratos fictícios assinados (Fase 6)
+let CONTRATO2: string;
 
 /** Espera um ErroRegra com o código indicado. */
 async function regra(p: Promise<unknown>, codigo: string) {
@@ -48,6 +50,10 @@ beforeAll(async () => {
   LOCAL = await mapa('locais');
   CERT = await mapa('certificados');
   SAFRA = ((await listar(ctx, 'safras')) as { id: string; codigo: string }[]).find((s) => s.codigo === '2025/26')!.id;
+  const cliente = SEED.parceiros.find((p) => (p.papeis as readonly string[]).includes('CLIENTE'))!.id;
+  const novo = async (sacas: string) => (await assinarContrato(ctx, (await criarContrato(ctx, { clienteId: cliente, quantidadeSacas: sacas, tipoPreco: 'FIXO', precoPorSaca: '1800', certificadoIds: [CERT.RFA!] })).id)).id;
+  CONTRATO = await novo('100');
+  CONTRATO2 = await novo('20');
 });
 afterAll(async () => {
   await prisma.$disconnect();
@@ -161,7 +167,7 @@ describe('cenário de aceitação §15 (passos 3–8 e 13)', () => {
     await criarReserva(ctx, { loteId: s.AR!.id, quantidade: '900', finalidade: 'CONTRATO', contratoId: CONTRATO });
     const d = await obterLote(ctx, s.AR!.id);
     expect([d.saldo, d.saldoLivre]).toEqual(['1200.000', '300.000']);
-    await regra(criarReserva(ctx, { loteId: s.AR!.id, quantidade: '400', finalidade: 'CONTRATO', contratoId: '0c000000-0000-4000-8000-000000000002' }), 'RN-07');
+    await regra(criarReserva(ctx, { loteId: s.AR!.id, quantidade: '400', finalidade: 'CONTRATO', contratoId: CONTRATO2 }), 'RN-07');
   });
 
   it('saída EB#1 do contrato consome a reserva e finaliza: AR parcial com saldo 300', async () => {
