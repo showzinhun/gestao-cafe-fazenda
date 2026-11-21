@@ -12,14 +12,14 @@ import { TelaEstoque } from '@/componentes/operacao/estoque';
 
 export const metadata: Metadata = { title: 'Estoque' };
 
-type Busca = { etapa?: string; safra?: string; fazenda?: string; peneira?: string; certificado?: string; local?: string; situacao?: string; q?: string };
+type Busca = { etapa?: string; safra?: string; fazenda?: string; peneira?: string; certificado?: string; local?: string; situacao?: string; q?: string; eudr?: string };
 
 export default async function PaginaEstoque({ searchParams }: { searchParams: Promise<Busca> }) {
   const ctx = await exigirContexto();
   const p = await searchParams;
   const filtro: FiltroEstoque = {
     etapaId: p.etapa || undefined, safraId: p.safra || undefined, fazendaId: p.fazenda || undefined, peneiraId: p.peneira || undefined,
-    certificadoId: p.certificado || undefined, localId: p.local || undefined, busca: p.q || undefined,
+    certificadoId: p.certificado || undefined, localId: p.local || undefined, busca: p.q || undefined, aptoEudr: p.eudr === 'apto',
     situacao: p.situacao === 'livre' || p.situacao === 'reservado' ? p.situacao : undefined,
   };
   const perm = ctx.permissoes ?? permissoesDoPerfil(ctx.perfil);
