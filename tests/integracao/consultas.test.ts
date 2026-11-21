@@ -50,6 +50,22 @@ describe('consultas das telas da Fase 3', () => {
     expect(r.origens[0]!.geometria).toBeTruthy();
   });
 
+  it('café e perda: cada lote rastreia só as entradas do seu tipo (D-02)', async () => {
+    const safraId = mapa.safras!['2025/26']!;
+    const { lote: ef } = await registrarCarga(ctx, { fazendaId: NS, talhaoId: T1, safraId, tipoCafeId: mapa['tipos-cafe']!.NAT!, quantidade: '10' });
+    const ld = await abrirMovimento(ctx, { etapaId: E.LAVADOR!, entradas: [{ loteId: ef.id, quantidade: '10' }] });
+    const r = await lancarResultados(ctx, ld.movimento.id, { parametros: { modelo: 'PERCENTUAL_POR_TIPO', resultados: [{ tipoCafeId: mapa['tipos-cafe']!.CD!, percentual: '0.5' }, { tipoCafeId: mapa['tipos-cafe']!.BOI!, percentual: '0.5' }] } });
+    const [cd, boi] = [r.lotes.find((l) => l.tipoCafeId === mapa['tipos-cafe']!.CD)!, r.lotes.find((l) => l.tipoCafeId === mapa['tipos-cafe']!.BOI)!];
+    const te = await abrirMovimento(ctx, { etapaId: E.TERREIRO!, localId: mapa.locais!['TE-01'], entradas: [{ loteId: cd.id, quantidade: '5' }, { loteId: boi.id, quantidade: '5' }] });
+    const rt = await lancarResultados(ctx, te.movimento.id, { parametros: { modelo: 'CAFE_E_PERDA', fator: '1' } });
+    const teCd = rt.lotes.find((l) => l.tipoCafeId === mapa['tipos-cafe']!.CD)!;
+    const cima = codigos((await rastrearLote(ctx, teCd.id, 'cima')).arvore);
+    expect(cima).toContain(cd.codigo);
+    expect(cima).not.toContain(boi.codigo);
+    const baixo = codigos((await rastrearLote(ctx, boi.id, 'baixo')).arvore);
+    expect(baixo).not.toContain(teCd.codigo);
+  });
+
   it('rastreabilidade para baixo vai da carga até o lote do armazém', async () => {
     const r = await rastrearLote(ctx, cadeia.EF1!, 'baixo');
     expect(codigos(r.arvore)).toContain(cadeia.ARcodigo);

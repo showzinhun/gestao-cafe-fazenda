@@ -283,12 +283,12 @@ export async function rastrearLote(ctx: Contexto, loteId: string, direcao: 'cima
       if (visitados.has(id) || nivel >= LIMITE_PROFUNDIDADE) return base;
       visitados.add(id);
       if (direcao === 'cima') {
-        const es = await tx.movimentoEntrada.findMany({ where: { movimentoId: l.movimentoId, cancelada: false }, orderBy: { criadoEm: 'asc' } });
+        const es = await tx.movimentoEntrada.findMany({ where: { movimentoId: l.movimentoId, cancelada: false, ...(l.fontes.length ? { id: { in: l.fontes } } : {}) }, orderBy: { criadoEm: 'asc' } });
         for (const e of es) base.filhos.push(await no(e.loteId, dec(e.quantidade).toFixed(3), nivel + 1));
       } else {
         const es = await tx.movimentoEntrada.findMany({
           where: { loteId: id, cancelada: false, movimento: { status: { not: 'ESTORNADO' } } },
-          include: { movimento: { include: { etapa: { select: { nome: true } }, lotes: { where: { status: { not: 'ESTORNADO' } }, select: { id: true } } } } },
+          include: { movimento: { include: { etapa: { select: { nome: true } }, lotes: { where: { status: { not: 'ESTORNADO' } }, select: { id: true, fontes: true } } } } },
           orderBy: { criadoEm: 'asc' },
         });
         for (const e of es) {
@@ -299,7 +299,7 @@ export async function rastrearLote(ctx: Contexto, loteId: string, direcao: 'cima
               movimento: { id: e.movimento.id, etapa: e.movimento.etapa.nome, numero: e.movimento.numero, status: e.movimento.status },
               quantidadeLigacao: dec(e.quantidade).toFixed(3), filhos: [],
             });
-          } else for (const g of e.movimento.lotes) base.filhos.push(await no(g.id, dec(e.quantidade).toFixed(3), nivel + 1));
+          } else for (const g of e.movimento.lotes.filter((x) => !x.fontes.length || x.fontes.includes(e.id))) base.filhos.push(await no(g.id, dec(e.quantidade).toFixed(3), nivel + 1));
         }
       }
       return base;

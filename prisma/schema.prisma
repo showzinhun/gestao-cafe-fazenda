@@ -723,6 +723,7 @@ model Lote {
   umidade             Decimal?   @db.Decimal(5, 2)
   status              StatusLote @default(ABERTO)
   origemTipo          OrigemLote @map("origem_tipo")
+  fontes              String[]   @default([]) @db.Uuid // entradas do movimento que formam este lote (vazio = todas)
   data                DateTime   @default(now()) @db.Timestamptz(6)
   observacao          String?
   criadoEm            DateTime   @default(now()) @map("criado_em") @db.Timestamptz(6)

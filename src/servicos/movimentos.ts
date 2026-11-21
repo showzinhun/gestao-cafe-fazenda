@@ -432,7 +432,7 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
         data: {
           empresaId: ctx.empresaId, codigo, movimentoId: mov.id, etapaId: etapa.id, fazendaId, safraId: mov.safraId, tipoCafeId, peneiraId: s.peneiraId,
           unidade: etapa.unidadeSaida, quantidade: s.quantidade.toFixed(3), percentual: s.percentual?.toFixed(6) ?? null,
-          umidade: d.umidadeFinal ?? null, origemTipo: 'PROCESSO', data: agora, criadoPor: ctx.usuarioId,
+          umidade: d.umidadeFinal ?? null, origemTipo: 'PROCESSO', fontes: s.fontes, data: agora, criadoPor: ctx.usuarioId,
         },
       });
       await tx.loteTalhao.createMany({
