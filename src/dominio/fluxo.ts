@@ -58,6 +58,8 @@ export interface TransicaoConfig {
 export interface Problema {
   etapa?: string;
   mensagem: string;
+  /** Transição impossível (classe ou unidade): bloqueia o salvamento. As demais são pendências. */
+  grave?: boolean;
 }
 
 export function normalizarPrefixo(p: string): string {
@@ -136,10 +138,10 @@ export function validarFluxo(etapas: EtapaConfig[], transicoes: TransicaoConfig[
       p.push({ mensagem: 'Há uma transição para uma etapa que não existe.' });
       continue;
     }
-    if (o.id === d.id) p.push({ etapa: o.nome, mensagem: 'Uma etapa não pode transferir para ela mesma.' });
-    if (!REGRAS_CLASSE[o.classe].enviaParaOutras) p.push({ etapa: o.nome, mensagem: `${NOME_CLASSE[o.classe]} é o fim do fluxo: não transfere para outra etapa.` });
-    if (!REGRAS_CLASSE[d.classe].recebeDeOutras) p.push({ etapa: d.nome, mensagem: `${NOME_CLASSE[d.classe]} não recebe café de outras etapas.` });
-    if (!unidadesCompativeis(o, d)) p.push({ etapa: d.nome, mensagem: `${o.nome} gera em ${NOME_UNIDADE[o.unidadeSaida]}, mas ${d.nome} recebe em ${NOME_UNIDADE[d.unidadeEntrada]}.` });
+    if (o.id === d.id) p.push({ etapa: o.nome, mensagem: 'Uma etapa não pode transferir para ela mesma.', grave: true });
+    if (!REGRAS_CLASSE[o.classe].enviaParaOutras) p.push({ etapa: o.nome, mensagem: `${NOME_CLASSE[o.classe]} é o fim do fluxo: não transfere para outra etapa.`, grave: true });
+    if (!REGRAS_CLASSE[d.classe].recebeDeOutras) p.push({ etapa: d.nome, mensagem: `${NOME_CLASSE[d.classe]} não recebe café de outras etapas.`, grave: true });
+    if (!unidadesCompativeis(o, d)) p.push({ etapa: d.nome, mensagem: `${o.nome} gera em ${NOME_UNIDADE[o.unidadeSaida]}, mas ${d.nome} recebe em ${NOME_UNIDADE[d.unidadeEntrada]}.`, grave: true });
     const k = `${t.origem}>${t.destino}>${t.fazendaId ?? '*'}`;
     if (chaves.has(k)) p.push({ etapa: o.nome, mensagem: `A transição ${o.nome} → ${d.nome} está repetida.` });
     chaves.add(k);

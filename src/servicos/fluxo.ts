@@ -79,11 +79,11 @@ export async function salvarEtapa(ctx: Contexto, idEtapa: string | null, entrada
     }
     const dup = await tx.etapa.findFirst({ where: { OR: [{ codigo: d.codigo }, { prefixoLote: d.prefixoLote }], ...(idEtapa ? { NOT: { id: idEtapa } } : {}) } });
     if (dup) throw new ErroValidacao(dup.codigo === d.codigo ? `O código ${d.codigo} já é da etapa ${dup.nome}.` : `O prefixo ${d.prefixoLote} já é da etapa ${dup.nome}.`);
-    if (atual && atual.classe !== d.classe) {
-      // Trocar a classe pode quebrar transições existentes: confere o fluxo com a mudança.
+    if (atual && (atual.classe !== d.classe || atual.unidadeEntrada !== d.unidadeEntrada || atual.unidadeSaida !== d.unidadeSaida)) {
+      // Trocar a classe ou as unidades pode quebrar transições existentes: confere o fluxo com a mudança.
       const f = await lerFluxo(tx);
       const etapas = f.etapas.map((e) => (e.id === atual.id ? { ...e, ...d } : e));
-      const graves = validarFluxo(etapas, f.transicoes).filter((x) => /não transfere|não recebe|recebe em medidas/.test(x.mensagem));
+      const graves = validarFluxo(etapas, f.transicoes).filter((x) => x.grave);
       if (graves.length) problemas(graves);
     }
     const { tiposResultado, ...campos } = d;
@@ -149,7 +149,7 @@ export async function salvarTransicoes(ctx: Contexto, entrada: z.input<typeof tr
     if (pares.some(([o, d]) => !ids.has(o) || !ids.has(d))) throw new ErroNaoEncontrado('Etapa não encontrada.');
     const unicos = [...new Map(pares.map(([o, d]) => [`${o}>${d}`, [o, d] as const])).values()];
     const novas: TransicaoConfig[] = [...f.transicoes.filter((t) => t.fazendaId !== fazendaId), ...unicos.map(([o, d]) => ({ origem: o, destino: d, fazendaId }))];
-    const graves = validarFluxo(f.etapas, novas).filter((x) => /não transfere|não recebe|recebe em medidas|para ela mesma/.test(x.mensagem));
+    const graves = validarFluxo(f.etapas, novas).filter((x) => x.grave);
     if (graves.length) problemas(graves);
     const antes = f.transicoes.filter((t) => t.fazendaId === fazendaId).map((t) => [t.origem, t.destino]);
     await tx.fluxoTransicao.deleteMany({ where: { fazendaId } });
