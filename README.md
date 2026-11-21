@@ -92,6 +92,15 @@ Usuários fictícios novos no seed: `apontador@alfa.exemplo` (APONTADOR, fazenda
 - **Leituras**: pelo celular (`/campo/secagem`, funciona sem sinal) ou na aba **Leituras** do movimento, com a curva umidade × tempo e a faixa da meta. Ao lançar o resultado, a umidade final vem da última leitura.
 - **Alertas** (`/alertas`, com contador no menu): ponto de secagem, secagem longa, capacidade e divergência da carga.
 
+## Comercial (Fase 6)
+
+- **Contratos** (`/contratos`): painel com saldo a embarcar por prazo (alerta quando faltam poucos dias), estoque livre × reservado por certificação e peneira, e a lista. O contrato nasce rascunho, é assinado, vai a "em execução" com a primeira reserva e a "concluído" quando o embarcado cumpre a quantidade (com tolerância).
+- **Detalhe do contrato**: reservas de lotes (certificados exigidos e peneira mínima, RN-17; saldo + tolerância, RN-07), fixações de preço (contratos "a fixar"), amostras enviadas com retorno e os embarques.
+- **Estoque**: selecione lotes e use **Reservar para contrato**. Sem amostra aprovada do lote para o cliente aparece só um aviso.
+- **Embarques** (`/embarques`): nascem do contrato e seguem programação (os kg ficam reservados para o embarque, RN-26) → carregamento com motorista, placa, lacres e pesagem (diferença acima do limite exige motivo, RN-27) → notas fiscais → finalizar. Romaneio A4 em PDF. Informada a DDS, o embarque não reabre (RN-14).
+
+O dossiê EUDR/certificações do embarque chega na Fase 7.
+
 ## Testes
 
 ```bash
