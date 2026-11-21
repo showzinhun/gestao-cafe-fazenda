@@ -273,7 +273,7 @@ export async function listarContratos(ctx: Contexto, f: { status?: string } = {}
       r.push({
         id: c.id, codigo: c.codigo, cliente: c.cliente.nome, status: c.status, sacas: c.quantidadeSacas.toString(), tipoPreco: c.tipoPreco, moeda: c.moeda, precoPorSaca: c.precoPorSaca?.toString() ?? null,
         prazoFim: iso(c.prazoEmbarqueFim), exigeEudr: c.exigeEudr, certificados: c.certificados.map((x) => x.certificado.codigo),
-        kg: s.quantidadeKg.toFixed(3), reservado: s.kgReservado.toFixed(3), embarcado: s.kgEmbarcado.toFixed(3), saldo: s.saldoKg.toFixed(3),
+        kg: s.quantidadeKg.toFixed(3), reservado: s.kgReservado.toFixed(3), embarcado: s.kgEmbarcado.toFixed(3), saldo: s.saldoKg.toFixed(3), aReservar: s.aReservar.toFixed(3),
       });
     }
     return r;
