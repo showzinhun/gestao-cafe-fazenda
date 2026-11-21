@@ -1,6 +1,7 @@
 import type { TipoAlerta, SeveridadeAlerta } from '@prisma/client';
 import { ErroNaoEncontrado } from '@/dominio/erros';
 import { comTransacao, ehUuid, type Contexto, type Tx } from './transacao';
+import { janela } from './paginacao';
 
 /**
  * Central de alertas (§4.6, §7). Cada alerta tem uma chave (ex.: PONTO_SECAGEM:<movimento>) para não se repetir.
@@ -10,9 +11,9 @@ export async function emitirAlerta(tx: Tx, empresaId: string, a: { tipo: TipoAle
   await tx.alerta.createMany({ data: [{ empresaId, severidade: 'AVISO', ...a }], skipDuplicates: true });
 }
 
-export async function listarAlertas(ctx: Contexto, f: { naoLidos?: boolean } = {}) {
+export async function listarAlertas(ctx: Contexto, f: { naoLidos?: boolean; pagina?: number } = {}) {
   return comTransacao(ctx, async (tx) =>
-    tx.alerta.findMany({ where: f.naoLidos ? { lidoEm: null } : {}, orderBy: [{ lidoEm: { sort: 'asc', nulls: 'first' } }, { criadoEm: 'desc' }], take: 300 }),
+    tx.alerta.findMany({ where: f.naoLidos ? { lidoEm: null } : {}, orderBy: [{ lidoEm: { sort: 'asc', nulls: 'first' } }, { criadoEm: 'desc' }], ...(f.pagina ? janela(f.pagina) : { skip: 0, take: 300 }) }),
   );
 }
 

@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js';
+import { janela } from './paginacao';
 import { z } from 'zod';
 import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { diferencaPesagem, limiteDoEmbarque } from '@/dominio/comercial';
@@ -294,12 +295,12 @@ export async function reabrirEmbarque(ctx: Contexto, movimentoId: string, motivo
 
 // ================================================================ consultas
 
-export async function listarEmbarques(ctx: Contexto) {
+export async function listarEmbarques(ctx: Contexto, pagina?: number) {
   return comTransacao(ctx, async (tx) => {
     const lista = await tx.embarqueDetalhe.findMany({
       include: { movimento: { select: { id: true, numero: true, status: true, qtdEntrada: true, etapa: { select: { prefixoLote: true } } } }, contrato: { select: { codigo: true, cliente: { select: { nome: true } } } } },
       orderBy: { criadoEm: 'desc' },
-      take: 300,
+      ...(pagina ? janela(pagina) : { skip: 0, take: 300 }),
     });
     const programados = await tx.reserva.groupBy({ by: ['movimentoId'], where: { status: 'ATIVA', finalidade: 'EMBARQUE', movimentoId: { in: lista.map((e) => e.movimentoId) } }, _sum: { quantidade: true } });
     return lista.map((e) => ({

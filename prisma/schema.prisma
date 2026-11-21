@@ -38,6 +38,8 @@ model Empresa {
   ie            String?
   plano         String        @default("BASICO")
   status        StatusEmpresa @default(ATIVA)
+  suspensaEm    DateTime?     @map("suspensa_em") @db.Timestamptz(6)
+  motivoStatus  String?       @map("motivo_status")
   configuracoes Json          @default("{}")
   criadoEm      DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
   alteradoEm    DateTime      @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
@@ -55,6 +57,8 @@ model Usuario {
   email      String   @unique
   senhaHash  String   @map("senha_hash")
   ativo      Boolean  @default(true)
+  /// Plataforma (§3.2): cria e suspende empresas; não vê dados operacionais. Só o dono do banco concede.
+  superadmin Boolean  @default(false)
   criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
   alteradoEm DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
 
@@ -719,6 +723,7 @@ model Movimento {
   @@unique([empresaId, etapaId, numero])
   @@unique([empresaId, id])
   @@index([empresaId, localId, status])
+  @@index([empresaId, contratoId, status])
   @@map("movimento")
 }
 
@@ -795,6 +800,8 @@ model Lote {
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
   @@index([empresaId, etapaId, status])
+  @@index([empresaId, status])
+  @@index([empresaId, movimentoId])
   @@map("lote")
 }
 
@@ -857,6 +864,8 @@ model Reserva {
   contrato Contrato? @relation(fields: [empresaId, contratoId], references: [empresaId, id])
 
   @@index([empresaId, loteId, status])
+  @@index([empresaId, movimentoId, status])
+  @@index([empresaId, contratoId, status])
   @@map("reserva")
 }
 
@@ -1459,6 +1468,7 @@ model EmbarqueDetalhe {
   motorista Motorista? @relation(fields: [empresaId, motoristaId], references: [empresaId, id])
 
   @@unique([empresaId, movimentoId])
+  @@index([empresaId, contratoId])
   @@map("embarque_detalhe")
 }
 

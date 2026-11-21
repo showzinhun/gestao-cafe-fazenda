@@ -7,6 +7,7 @@ import { dataLocal, dec } from './rastreio-base';
 import { formatarNumero } from '@/lib/formatacao';
 import { situacaoEudr, type SituacaoEudr } from '@/dominio/eudr';
 import { talhoesDosLotes, talhoesEudr } from './eudr-base';
+import { cortar, fatiar, janela } from './paginacao';
 
 /**
  * Leituras para as telas da Fase 3 (§12 itens 6, 8, 10 e 12). Sem regra de negócio:
@@ -64,7 +65,7 @@ export async function resumoEtapas(ctx: Contexto) {
   });
 }
 
-export async function listarMovimentos(ctx: Contexto, etapaId: string, filtro: { status?: string; busca?: string } = {}) {
+export async function listarMovimentos(ctx: Contexto, etapaId: string, filtro: { status?: string; busca?: string; pagina?: number } = {}) {
   if (!ehUuid(etapaId)) throw new ErroNaoEncontrado('Etapa não encontrada.');
   return comTransacao(ctx, async (tx) => {
     const etapa = await tx.etapa.findFirst({ where: { id: etapaId } });
@@ -80,11 +81,13 @@ export async function listarMovimentos(ctx: Contexto, etapaId: string, filtro: {
         _count: { select: { entradas: { where: { cancelada: false } } } },
       },
       orderBy: { numero: 'desc' },
-      take: 300,
+      ...janela(filtro.pagina ?? 1),
     });
+    const { itens, paginacao } = cortar(movs, filtro.pagina ?? 1);
     return {
+      paginacao,
       etapa: { id: etapa.id, nome: etapa.nome, classe: etapa.classe, prefixo: etapa.prefixoLote, unidadeEntrada: etapa.unidadeEntrada, unidadeSaida: etapa.unidadeSaida, exigeLocal: etapa.exigeLocal, modeloResultado: etapa.modeloResultado },
-      movimentos: movs.map((m) => ({
+      movimentos: itens.map((m) => ({
         id: m.id, numero: m.numero, status: m.status, natureza: m.natureza, dataEntrada: m.dataEntrada, dataResultado: m.dataResultado, local: m.local?.codigo ?? null,
         fazenda: m.fazenda?.codigo ?? 'MIX', unidade: m.unidade, entrada: txt(m.qtdEntrada), saida: txt(m.qtdSaida), quebra: m.percQuebra?.toString() ?? null,
         rendimento: m.rendimento?.toString() ?? null, entradas: m._count.entradas, lotes: m.lotes.map((l) => l.codigo),
@@ -219,7 +222,7 @@ export interface FiltroEstoque {
   busca?: string;
 }
 
-export async function consultarEstoque(ctx: Contexto, f: FiltroEstoque = {}) {
+export async function consultarEstoque(ctx: Contexto, f: FiltroEstoque = {}, pagina?: number) {
   return comTransacao(ctx, async (tx) => {
     const where: Prisma.LoteWhereInput = {
       status: { in: ['ABERTO', 'PARCIAL'] },
@@ -242,7 +245,7 @@ export async function consultarEstoque(ctx: Contexto, f: FiltroEstoque = {}) {
         reservas: { where: { status: 'ATIVA' }, select: { finalidade: true, quantidade: true } },
       },
       orderBy: { codigo: 'asc' },
-      take: 1000,
+      take: 5000,
     });
     const linhas = lotes.map((l) => {
       const base = { quantidade: dec(l.quantidade), quantidadeUtilizada: dec(l.quantidadeUtilizada), quantidadeReservada: dec(l.quantidadeReservada) };
@@ -265,7 +268,8 @@ export async function consultarEstoque(ctx: Contexto, f: FiltroEstoque = {}) {
     });
     const filtradas = comEudr.filter((l) => (f.situacao !== 'livre' || dec(l.livre).gt(0)) && (!f.aptoEudr || l.eudr === 'APTO'));
     const total = (campo: 'saldo' | 'livre' | 'reservado', unidade: 'KG' | 'MEDIDA') => filtradas.filter((l) => l.unidade === unidade).reduce((s, l) => s.plus(l[campo]), new Decimal(0)).toFixed(3);
-    return { lotes: filtradas, totais: { kg: { saldo: total('saldo', 'KG'), livre: total('livre', 'KG'), reservado: total('reservado', 'KG') }, medidas: { saldo: total('saldo', 'MEDIDA') } } };
+    const pag = pagina ? fatiar(filtradas, pagina) : { itens: filtradas, paginacao: { pagina: 1, temMais: false } };
+    return { lotes: pag.itens, paginacao: pag.paginacao, quantidade: filtradas.length, totais: { kg: { saldo: total('saldo', 'KG'), livre: total('livre', 'KG'), reservado: total('reservado', 'KG') }, medidas: { saldo: total('saldo', 'MEDIDA') } } };
   });
 }
 

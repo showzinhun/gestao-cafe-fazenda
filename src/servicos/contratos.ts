@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js';
+import { janela } from './paginacao';
 import { z } from 'zod';
 import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { codigoContrato, contratoCumprido, diasAte, kgDoContrato, resumoFixacoes } from '@/dominio/comercial';
@@ -259,13 +260,13 @@ export async function retornoAmostra(ctx: Contexto, id: string, entrada: { statu
 
 // ================================================================ consultas e painel (§9.6)
 
-export async function listarContratos(ctx: Contexto, f: { status?: string } = {}) {
+export async function listarContratos(ctx: Contexto, f: { status?: string; pagina?: number } = {}) {
   return comTransacao(ctx, async (tx) => {
     const lista = await tx.contrato.findMany({
       where: f.status ? { status: f.status as never } : {},
       include: { cliente: { select: { nome: true } }, certificados: { include: { certificado: { select: { codigo: true } } } } },
       orderBy: [{ ano: 'desc' }, { numero: 'desc' }],
-      take: 300,
+      ...(f.pagina ? janela(f.pagina) : { skip: 0, take: 300 }),
     });
     const r = [];
     for (const c of lista) {

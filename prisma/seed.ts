@@ -20,6 +20,9 @@ async function main() {
   for (const u of SEED.usuarios) {
     await db.usuario.upsert({ where: { id: u.id }, update: { nome: u.nome, email: u.email, senhaHash: hash, ativo: true }, create: { id: u.id, nome: u.nome, email: u.email, senhaHash: hash } });
   }
+  // SUPERADMIN: só o dono do banco concede (gatilho usuario_superadmin_protegido).
+  const pl = SEED.plataforma;
+  await db.usuario.upsert({ where: { id: pl.id }, update: { nome: pl.nome, email: pl.email, senhaHash: hash, ativo: true, superadmin: true }, create: { id: pl.id, nome: pl.nome, email: pl.email, senhaHash: hash, superadmin: true } });
   const admin = (emp: 'alfa' | 'beta') => SEED.usuarios.find((u) => u.vinculos.some(([e, p]) => e === emp && p === 'ADMIN_EMPRESA'))!;
   for (const [chave, e] of Object.entries(SEED.empresas) as ['alfa' | 'beta', (typeof SEED.empresas)['alfa']][]) {
     if (!(await db.empresa.findUnique({ where: { id: e.id } }))) {
