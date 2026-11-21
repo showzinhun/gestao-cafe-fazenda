@@ -5,6 +5,7 @@ import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { certificadosDaFazenda, certificadosHerdados, comporTalhoes, conferirCertificadosEscolhidos, equivalentes, saldoLivre, type Composicao } from '@/dominio/lote';
 import { calcularResultado, type ParametrosResultado } from '@/dominio/resultados';
 import { divergenciaCarga } from '@/dominio/colheita';
+import { esquemasDe, exigirMotivoQuebra, exigirMotivoRebaixamento, limiteQuebraServico, rebaixamentos, type LinhaRebaixamento } from '@/dominio/certificacao';
 import { qtd } from '@/dominio/quantidade';
 import { auditar } from './auditoria';
 import { emitirAlerta } from './alertas';
@@ -391,6 +392,8 @@ const resultadoSchema = z.object({
   umidadeFinal: decimalTexto.refine((v) => /^\d{1,2}(\.\d{1,2})?$/.test(v), 'Umidade entre 0 e 99,99%.').optional().nullable(),
   certificadoIds: z.array(id).optional(),
   dataSaidaLocal: z.coerce.date().optional(),
+  motivoRebaixamento: z.string().trim().max(300).optional().nullable(),
+  motivoQuebra: z.string().trim().max(300).optional().nullable(),
 });
 
 /** Lança os resultados conforme o modelo da etapa e gera os lotes (PROCESSADO). */
@@ -403,7 +406,7 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
     if (mov.status === 'PROCESSADO') throw new ErroValidacao('O movimento já tem resultados. Apague os resultados para lançar de novo.');
     if (mov.status !== 'ABERTO') throw new ErroValidacao('Só se lançam resultados num movimento aberto.');
     if (etapa.classe === 'SAIDA') throw new ErroValidacao('A saída não gera lotes: finalize o movimento.');
-    if (d.certificadoIds && etapa.classe !== 'ESTOQUE') throw new ErroValidacao('Os certificados só são escolhidos na etapa de estoque (§10).');
+    if (d.certificadoIds && etapa.classe !== 'ESTOQUE' && etapa.classe !== 'SERVICO') throw new ErroValidacao('Os certificados só são escolhidos no estoque e nos serviços (§10).');
     // Estoque: cada lote gerado fica num local da etapa (RN-25). Padrão: o local do movimento.
     const locaisDosLotes = d.parametros.modelo === 'CONVERSAO_ESTOQUE' ? d.parametros.lotes.map((l) => l.localId ?? mov.localId) : [];
     if (etapa.classe === 'ESTOQUE') {
@@ -423,6 +426,13 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
       entradas: es.map((e) => ({ id: e.id, quantidade: dec(e.quantidade), tipoCafeId: e.lote.tipoCafeId })),
       parametros: d.parametros as ParametrosResultado,
     });
+
+    // RN-31: quebra do serviço acima do limite do tipo exige motivo.
+    let motivoQuebra: string | null = null;
+    if (etapa.classe === 'SERVICO') {
+      const empresa = await tx.empresa.findFirst({ where: { id: ctx.empresaId }, select: { configuracoes: true } });
+      motivoQuebra = exigirMotivoQuebra({ percQuebra: calc.percQuebra?.toString() ?? null, limite: limiteQuebraServico(empresa?.configuracoes, mov.servicoTipo), tipo: mov.servicoTipo ?? 'serviço', motivo: d.motivoQuebra });
+    }
 
     // Cadastros usados no resultado.
     const tipoIds = [...new Set(calc.saidas.map((s) => s.tipoCafeId).filter((x): x is string => !!x))];
@@ -444,6 +454,10 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
     const nomeCert = new Map((await tx.certificado.findMany()).map((c) => [c.id, c.codigo]));
 
     const gerados = [];
+    const rebaixados: (LinhaRebaixamento & { loteResultadoId: string })[] = [];
+    // Parte de cada entrada que vai para cada saída (para os kg do rebaixamento, RN-28).
+    const totalPorFonte = new Map<string, Decimal>();
+    for (const s of calc.saidas) for (const f of s.fontes) totalPorFonte.set(f, (totalPorFonte.get(f) ?? new Decimal(0)).plus(s.quantidade));
     for (const [i, s] of calc.saidas.entries()) {
       const fontes = s.fontes.map((f) => porEntrada.get(f)!);
       const composicao: Composicao = comporTalhoes(fontes.map((f) => ({ quantidade: dec(f.quantidade), composicao: comp.get(f.loteId)! })));
@@ -477,12 +491,31 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
       });
       if (certs.length) await tx.loteCertificado.createMany({ data: certs.map((c) => ({ empresaId: ctx.empresaId, loteId: lote.id, certificadoId: c })) });
       if (etapa.classe === 'ESTOQUE') await somarLocal(tx, ctx.empresaId, lote.id, locaisDosLotes[i]!, s.quantidade);
+      if (etapa.classe === 'SERVICO') {
+        const esquemas = (ids: Iterable<string>) => esquemasDe([...ids].map((c) => nomeCert.get(c) ?? ''));
+        const origens = fontes.map((f) => ({
+          loteId: f.loteId, codigo: f.lote.codigo, esquemas: esquemas(certsOrigem.get(f.loteId) ?? []),
+          kg: qtd(dec(f.quantidade).times(totalPorFonte.get(f.id)!.isZero() ? 0 : new Decimal(s.quantidade).div(totalPorFonte.get(f.id)!))),
+        }));
+        rebaixados.push(...rebaixamentos(origens, esquemas(certs)).map((l) => ({ ...l, loteResultadoId: lote.id })));
+      }
       gerados.push(lote);
+    }
+
+    const motivoRebaixamento = exigirMotivoRebaixamento(rebaixados, d.motivoRebaixamento);
+    if (motivoRebaixamento) {
+      await tx.rebaixamento.createMany({
+        data: rebaixados.map((r) => ({
+          empresaId: ctx.empresaId, movimentoId: mov.id, loteOrigemId: r.loteId, loteResultadoId: r.loteResultadoId, kg: r.kg.toFixed(3),
+          esquemasOrigem: r.origem, esquemasResultado: r.resultado, esquemasPerdidos: r.perdidos, motivo: motivoRebaixamento, criadoPor: ctx.usuarioId,
+        })),
+      });
     }
 
     const atualizado = await tx.movimento.update({
       where: { id: mov.id },
       data: {
+        motivoQuebra,
         status: 'PROCESSADO', dataResultado: agora, dataSaidaLocal: d.dataSaidaLocal ?? null, qtdSaida: calc.saida.toFixed(3),
         qtdPerda: calc.perda?.toFixed(3) ?? null, percQuebra: calc.percQuebra?.toFixed(6) ?? null, rendimento: calc.rendimento?.toFixed(3) ?? null,
         umidadeFinal: d.umidadeFinal ?? null, alteradoPor: ctx.usuarioId,
@@ -526,8 +559,9 @@ export async function apagarResultados(ctx: Contexto, movimentoId: string, motiv
     }
     const atualizado = await tx.movimento.update({
       where: { id: mov.id },
-      data: { status: 'ABERTO', dataResultado: null, qtdSaida: null, qtdPerda: null, percQuebra: null, rendimento: null, umidadeFinal: null, alteradoPor: ctx.usuarioId },
+      data: { status: 'ABERTO', dataResultado: null, qtdSaida: null, qtdPerda: null, percQuebra: null, rendimento: null, umidadeFinal: null, motivoQuebra: null, alteradoPor: ctx.usuarioId },
     });
+    await tx.rebaixamento.updateMany({ where: { movimentoId: mov.id, cancelado: false, loteResultadoId: { not: null } }, data: { cancelado: true } });
     await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'APAGAR_RESULTADOS', antes: { lotes: lotes.map((l) => l.codigo) }, depois: { motivo: m } });
     return atualizado;
   });
@@ -569,6 +603,7 @@ export async function estornarMovimento(ctx: Contexto, movimentoId: string, moti
       where: { id: mov.id },
       data: { status: 'ESTORNADO', estornadoEm: new Date(), estornadoPor: ctx.usuarioId, motivoEstorno: m, alteradoPor: ctx.usuarioId },
     });
+    await tx.rebaixamento.updateMany({ where: { movimentoId: mov.id, cancelado: false }, data: { cancelado: true } });
     await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'ESTORNAR', antes: { status: mov.status, lotes: lotes.map((l) => l.codigo) }, depois: { motivo: m } });
     return atualizado;
   });

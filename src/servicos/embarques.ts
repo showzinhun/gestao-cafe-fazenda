@@ -4,6 +4,8 @@ import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { diferencaPesagem, limiteDoEmbarque } from '@/dominio/comercial';
 import { normalizarPlaca, placaValida, soDigitos } from '@/dominio/documentos';
 import { saldoLivre } from '@/dominio/lote';
+import { esquemasDe, exigirMotivoRebaixamento, exigirVenda, rebaixamentos, rotuloEsquemas } from '@/dominio/certificacao';
+import { congelarNaFinalizacao } from './dossie';
 import { kgParaSacas, qtd } from '@/dominio/quantidade';
 import { auditar } from './auditoria';
 import { atualizarStatusContrato, saldosDoContrato } from './contratos';
@@ -134,6 +136,9 @@ const carregamentoSchema = z.object({
   tara: quantidadeSchema,
   motivoDiferenca: z.string().trim().max(300).optional().nullable(),
   dataEmbarque: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  /** "Vender como" (RN-28): ids dos certificados vendidos; vazio = convencional; ausente = o que todos os lotes têm. */
+  certificadosVendidos: z.array(z.string().uuid()).optional(),
+  motivoRebaixamento: z.string().trim().max(300).optional().nullable(),
 });
 
 /**
@@ -157,6 +162,20 @@ export async function registrarCarregamento(ctx: Contexto, movimentoId: string, 
     const p = diferencaPesagem({ bruto: d.pesoBruto, tara: d.tara, somaLotes: soma, limitePerc: limite });
     if (p.exigeMotivo && !(d.motivoDiferenca && d.motivoDiferenca.length >= 5))
       throw new ErroRegra('RN-27', `A balança deu ${p.liquido.toFixed(3)} kg líquidos para ${soma.toFixed(3)} kg de lotes (${p.perc.times(100).toFixed(2)}%, acima de ${new Decimal(limite).times(100).toFixed(1)}%). Informe o motivo da diferença.`);
+    // Vender como (RN-28): só esquemas que todos os lotes têm; o contrato exige os seus (RN-17); perder esquema = rebaixamento.
+    const certsLote = await tx.loteCertificado.findMany({ where: { loteId: { in: reservas.map((r) => r.loteId) }, removidoEm: null }, include: { certificado: { select: { codigo: true } }, lote: { select: { codigo: true } } } });
+    const idsPorLote = new Map(reservas.map((r) => [r.loteId, certsLote.filter((c) => c.loteId === r.loteId).map((c) => c.certificadoId)]));
+    const comuns = [...idsPorLote.values()].reduce<string[] | null>((a, ids) => (a === null ? ids : a.filter((x) => ids.includes(x))), null) ?? [];
+    const vendidosIds = [...new Set(d.certificadosVendidos ?? comuns)];
+    const vendidosCert = await tx.certificado.findMany({ where: { id: { in: vendidosIds } } });
+    if (vendidosCert.length !== vendidosIds.length) throw new ErroNaoEncontrado('Certificado não encontrado.');
+    const vendidos = esquemasDe(vendidosCert.map((c) => c.codigo));
+    const exigidos = esquemasDe((await tx.contratoCertificado.findMany({ where: { contratoId: det.contratoId }, include: { certificado: { select: { codigo: true } } } })).map((c) => c.certificado.codigo));
+    const codigoLote = new Map(certsLote.map((c) => [c.loteId, c.lote.codigo]));
+    const lotesVenda = reservas.map((r) => ({ loteId: r.loteId, codigo: codigoLote.get(r.loteId) ?? r.loteId, kg: dec(r.quantidade), esquemas: esquemasDe(certsLote.filter((c) => c.loteId === r.loteId).map((c) => c.certificado.codigo)) }));
+    exigirVenda(lotesVenda, vendidos, exigidos);
+    const rebaixados = rebaixamentos(lotesVenda, vendidos);
+    const motivoRebaixamento = exigirMotivoRebaixamento(rebaixados, d.motivoRebaixamento);
     // As reservas do embarque viram entradas: o café sai do estoque (e do local, RN-25).
     await aplicarEntradas(tx, ctx, mov, mov.etapa, reservas.map((r) => ({ loteId: r.loteId, quantidade: dec(r.quantidade).toFixed(3), reservaId: r.id, localId: r.localId })));
     await tx.embarqueDetalhe.update({
@@ -165,10 +184,19 @@ export async function registrarCarregamento(ctx: Contexto, movimentoId: string, 
         motoristaId: d.motoristaId ?? null, placa: normalizarPlaca(d.placa), transportadorId: d.transportadorId ?? null, lacres: d.lacres, pesoBruto: d.pesoBruto, tara: d.tara,
         pesoLiquido: p.liquido.toFixed(3), diferencaKg: p.diferenca.toFixed(3), diferencaPerc: p.perc.toFixed(6), motivoDiferenca: p.exigeMotivo ? d.motivoDiferenca : d.motivoDiferenca || null,
         dataEmbarque: d.dataEmbarque ? dia(d.dataEmbarque) : dia(dataLocal(new Date())), carregadoEm: new Date(), carregadoPor: ctx.usuarioId, alteradoPor: ctx.usuarioId,
+        certificadosVendidos: vendidosIds, vendaDefinida: true,
       },
     });
-    await auditar(tx, ctx, { entidade: 'movimento', entidadeId: movimentoId, acao: 'CARREGAR', depois: { ...d, liquido: p.liquido.toFixed(3), diferencaPerc: p.perc.toFixed(6) } });
-    return { liquido: p.liquido.toFixed(3), diferenca: p.diferenca.toFixed(3), perc: p.perc.toFixed(6) };
+    if (motivoRebaixamento) {
+      await tx.rebaixamento.createMany({
+        data: rebaixados.map((r) => ({
+          empresaId: ctx.empresaId, movimentoId, loteOrigemId: r.loteId, kg: r.kg.toFixed(3), esquemasOrigem: r.origem, esquemasResultado: r.resultado, esquemasPerdidos: r.perdidos,
+          motivo: motivoRebaixamento, criadoPor: ctx.usuarioId,
+        })),
+      });
+    }
+    await auditar(tx, ctx, { entidade: 'movimento', entidadeId: movimentoId, acao: 'CARREGAR', depois: { ...d, liquido: p.liquido.toFixed(3), diferencaPerc: p.perc.toFixed(6), vendidoComo: rotuloEsquemas(vendidos) } });
+    return { liquido: p.liquido.toFixed(3), diferenca: p.diferenca.toFixed(3), perc: p.perc.toFixed(6), vendidoComo: rotuloEsquemas(vendidos), rebaixamentos: rebaixados.length };
   });
 }
 
@@ -231,7 +259,8 @@ export async function cancelarNota(ctx: Contexto, movimentoId: string, notaId: s
 
 /**
  * Finalizar (§9.4, RN-27): exige carregamento; Σ entradas ≤ saldo do contrato + tolerância.
- * O embarque fica imutável (RN-14) e o contrato pode virar CONCLUIDO. O dossiê EUDR entra na Fase 7.
+ * O embarque fica imutável (RN-14) e o contrato pode virar CONCLUIDO. Congela o dossiê (com EUDR, sem pendências:
+ * RN-18) e emite o pacote para a exportadora (RN-30).
  */
 export async function finalizarEmbarque(ctx: Contexto, movimentoId: string) {
   exigir(ctx, 'movimento.fechar');
@@ -242,14 +271,15 @@ export async function finalizarEmbarque(ctx: Contexto, movimentoId: string) {
     const embarcado = await tx.movimento.aggregate({ _sum: { qtdEntrada: true }, where: { contratoId: contrato.id, status: 'FINALIZADO' } });
     const limite = limiteDoEmbarque({ quantidadeKg: dec(contrato.quantidadeSacas).times(60), toleranciaPerc: contrato.toleranciaPerc.toString(), kgEmbarcado: dec(embarcado._sum.qtdEntrada) });
     if (dec(mov.qtdEntrada).gt(limite)) throw new ErroRegra('RN-07', `O embarque (${dec(mov.qtdEntrada).toFixed(3)} kg) passa do saldo do contrato com a tolerância (${limite.toFixed(3)} kg).`);
+    const { dossie, pacote } = await congelarNaFinalizacao(tx, ctx, mov.id, contrato.exigeEudr);
     const agora = new Date();
     const r = await tx.movimento.update({
       where: { id: mov.id },
       data: { status: 'FINALIZADO', qtdSaida: mov.qtdEntrada, qtdPerda: '0', percQuebra: '0', dataResultado: agora, finalizadoEm: agora, finalizadoPor: ctx.usuarioId, alteradoPor: ctx.usuarioId },
     });
     const c = await atualizarStatusContrato(tx, ctx, contrato.id);
-    await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'FINALIZAR', depois: { kg: mov.qtdEntrada, contrato: contrato.codigo, statusContrato: c.status } });
-    return { movimento: r, statusContrato: c.status };
+    await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'FINALIZAR', depois: { kg: mov.qtdEntrada, contrato: contrato.codigo, statusContrato: c.status, dossie: dossie.versao, pacote: pacote.versao } });
+    return { movimento: r, statusContrato: c.status, dossie: { versao: dossie.versao, hash: dossie.hashSha256 }, pacote: { versao: pacote.versao, hash: pacote.hashSha256 } };
   });
 }
 
@@ -306,6 +336,11 @@ export async function obterEmbarque(ctx: Contexto, movimentoId: string) {
     const nomes = new Map((await tx.usuarioEmpresa.findMany({ where: { usuarioId: { in: [det.programadoPor, det.carregadoPor, m.finalizadoPor, m.criadoPor].filter((x): x is string => !!x) } }, include: { usuario: { select: { id: true, nome: true } } } })).map((v) => [v.usuario.id, v.usuario.nome]));
     const quem = (id: string | null) => (id ? (nomes.get(id) ?? null) : null);
     const programado = m.reservas.reduce((t, r) => t.plus(dec(r.quantidade)), new Decimal(0));
+    const vendidos = await tx.certificado.findMany({ where: { id: { in: det.certificadosVendidos } }, select: { id: true, codigo: true } });
+    const rebaixados = await tx.rebaixamento.findMany({ where: { movimentoId, cancelado: false } });
+    const dossie = await tx.dossie.findFirst({ where: { movimentoId }, orderBy: { versao: 'desc' } });
+    const pacotes = await tx.pacoteEmbarque.findMany({ where: { movimentoId }, orderBy: { versao: 'desc' }, select: { versao: true, hashSha256: true, geradoEm: true, motivo: true } });
+    const conteudoDossie = dossie?.conteudo as { pendencias?: { mensagem: string }[]; talhoes?: { fazenda: string; talhao: string; kg: number; percentual: number; checagem: { resultado: string } | null }[] } | undefined;
     return {
       id: m.id, rotulo: `${m.etapa.prefixoLote}#${m.numero}`, etapa: m.etapa.nome, status: m.status,
       contrato: { id: det.contratoId, codigo: det.contrato.codigo, cliente: det.contrato.cliente.nome, certificados: det.contrato.certificados.map((c) => c.certificado.codigo), exigeEudr: det.contrato.exigeEudr, status: det.contrato.status, saldo: s.saldoKg.toFixed(3), kg: s.quantidadeKg.toFixed(3), toleranciaPerc: det.contrato.toleranciaPerc.toString() },
@@ -319,6 +354,16 @@ export async function obterEmbarque(ctx: Contexto, movimentoId: string) {
       reservasDoContrato: contratoReservas.map((r) => ({ id: r.id, loteId: r.loteId, lote: r.lote.codigo, quantidade: r.quantidade.toString() })),
       entradas: m.entradas.map((e) => ({ id: e.id, loteId: e.loteId, lote: e.lote.codigo, peneira: e.lote.peneira?.codigo ?? null, certificados: e.lote.certificados.map((c) => c.certificado.codigo), quantidade: e.quantidade.toString() })),
       kgEntradas: m.qtdEntrada.toString(),
+      venda: {
+        definida: det.vendaDefinida, certificados: vendidos.map((c) => c.codigo).sort(), rotulo: det.vendaDefinida ? rotuloEsquemas(esquemasDe(vendidos.map((c) => c.codigo))) : null,
+        rebaixamentos: rebaixados.map((r) => ({ id: r.id, kg: r.kg.toString(), perdidos: r.esquemasPerdidos, motivo: r.motivo, lote: m.entradas.find((e) => e.loteId === r.loteOrigemId)?.lote.codigo ?? null })),
+      },
+      dossie: dossie ? {
+        versao: dossie.versao, hash: dossie.hashSha256, congelado: dossie.congelado, geradoEm: dossie.geradoEm,
+        pendencias: (conteudoDossie?.pendencias ?? []).map((p) => p.mensagem),
+        talhoes: (conteudoDossie?.talhoes ?? []).map((t) => ({ fazenda: t.fazenda, talhao: t.talhao, kg: String(t.kg), percentual: String(t.percentual), checagem: t.checagem?.resultado ?? null })),
+      } : null,
+      pacotes: pacotes.map((p) => ({ versao: p.versao, hash: p.hashSha256, geradoEm: p.geradoEm, motivo: p.motivo })),
       notas: m.notas.map((n) => ({ id: n.id, numero: n.numeroNota, serie: n.serie, chave: n.chaveNfe, dataEmissao: iso(n.dataEmissao), kg: n.qtdKg.toString(), sacas: n.qtdSacas.toString() })),
       linhaDoTempo: [
         { etapa: 'Criado', feita: true, quando: m.criadoEm, quem: quem(m.criadoPor) },

@@ -28,7 +28,9 @@ describe('isolamento multiempresa (RN-22)', () => {
   it('RN-22 a empresa A só lista as próprias fazendas', async () => {
     const a = await listarFazendas(ctxAlfa);
     const b = await listarFazendas(ctxBeta);
-    expect(a.map((f) => f.codigo).sort()).toEqual(fazendaDe('alfa').map((f) => f.codigo).sort());
+    // Outros testes cadastram fazendas na Alfa: confere que as do seed estão lá e que nenhuma da Beta aparece.
+    expect(a.map((f) => f.codigo)).toEqual(expect.arrayContaining(fazendaDe('alfa').map((f) => f.codigo)));
+    expect(a.some((f) => fazendaDe('beta').some((b) => b.id === f.id))).toBe(false);
     expect(b.map((f) => f.codigo)).toEqual(['SL']);
   });
 

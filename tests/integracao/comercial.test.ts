@@ -10,6 +10,7 @@ import { cancelarReserva } from '@/servicos/reservas';
 import { assinarContrato, criarContrato, obterContrato, painelComercial, registrarAmostra, registrarFixacao, reservarParaContrato, retornoAmostra } from '@/servicos/contratos';
 import { adicionarNota, alterarLogistica, criarEmbarque, desfazerProgramacao, finalizarEmbarque, obterEmbarque, programarEmbarque, reabrirEmbarque, registrarCarregamento } from '@/servicos/embarques';
 import { listarAlertas } from '@/servicos/alertas';
+import { checarTalhao } from '@/servicos/conformidade';
 import { gerarRomaneioPdf } from '@/lib/pdf-romaneio';
 import { ErroNaoEncontrado, ErroPermissao, ErroRegra } from '@/dominio/erros';
 import { SEED } from '../../prisma/dados-seed';
@@ -150,14 +151,17 @@ describe('passos 12 e 15 do §15: embarque em etapas', () => {
     await regra(registrarCarregamento(ctx, eb, { ...carga, pesoBruto: '15905', tara: '15000' }), 'RN-27');
     const r = await registrarCarregamento(ctx, eb, { ...carga, pesoBruto: '15905', tara: '15000', motivoDiferenca: 'umidade da sacaria' });
     expect([r.liquido, r.diferenca, r.perc]).toEqual(['905.000', '5.000', '0.005556']);
+    expect([r.vendidoComo, r.rebaixamentos]).toEqual(['RFA', 0]); // passo 15: vendido como RFA, sem rebaixamento
     const e = await obterEmbarque(ctx, eb);
     expect([e.kgEntradas, e.carregamento?.lacres]).toEqual(['900', ['L-001', 'L-002']]);
   });
 
   it('passo 12: notas, finalizar → contrato CONCLUIDO; lote AR parcial com saldo 300; reservas consumidas; romaneio', async () => {
     await adicionarNota(ctx, eb, { numeroNota: '1234', serie: '1', dataEmissao: '2026-06-20', qtdKg: '900', chaveNfe: '3526 0611 2223 3300 0181 5500 1000 0012 3410 0000 1234' });
+    await checarTalhao(ctx, T1); // passo 11: contrato com EUDR só finaliza com checagem SEM_ALERTA (RN-18, ver conformidade.test.ts)
     const r = await finalizarEmbarque(ctx, eb);
     expect([r.movimento.status, r.statusContrato]).toEqual(['FINALIZADO', 'CONCLUIDO']);
+    expect([r.dossie.versao, r.pacote.versao]).toEqual([1, 1]);
     const l = await obterLote(ctx, ar.id);
     expect([l.status, l.saldo]).toEqual(['PARCIAL', '300.000']);
     expect((await dono.reserva.findMany({ where: { loteId: ar.id } })).every((x) => x.status !== 'ATIVA')).toBe(true);
