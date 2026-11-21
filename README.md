@@ -86,6 +86,12 @@ npx tsx --env-file=.env scripts/demo-cenario.ts
 
 Usuários fictícios novos no seed: `apontador@alfa.exemplo` (APONTADOR, fazenda NS) e `financeiro@alfa.exemplo` (FINANCEIRO).
 
+## Painel de secagem (Fase 5)
+
+- **Painel** (`/secagem`): um cartão por local das etapas que monitoram secagem, colorido por situação (livre, em secagem, no ponto, atenção). Mostra ocupação, dias, última umidade com tendência e o ponto estimado.
+- **Leituras**: pelo celular (`/campo/secagem`, funciona sem sinal) ou na aba **Leituras** do movimento, com a curva umidade × tempo e a faixa da meta. Ao lançar o resultado, a umidade final vem da última leitura.
+- **Alertas** (`/alertas`, com contador no menu): ponto de secagem, secagem longa, capacidade e divergência da carga.
+
 ## Testes
 
 ```bash
