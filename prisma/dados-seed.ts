@@ -39,5 +39,19 @@ export const SEED = {
     { id: 'c3a1d2e4-0000-4000-8000-00000000a002', nome: 'Otávio Operador', email: 'operador@alfa.exemplo', vinculos: [['alfa', 'OPERADOR']] },
     { id: 'c3a1d2e4-0000-4000-8000-00000000b001', nome: 'Bruno Admin', email: 'admin@beta.exemplo', vinculos: [['beta', 'ADMIN_EMPRESA']] },
     { id: 'c3a1d2e4-0000-4000-8000-00000000c001', nome: 'Carla Consultora', email: 'consultora@exemplo.com', vinculos: [['alfa', 'GESTOR'], ['beta', 'CONSULTA']] },
+    { id: 'c3a1d2e4-0000-4000-8000-00000000a003', nome: 'Paulo Apontador', email: 'apontador@alfa.exemplo', vinculos: [['alfa', 'APONTADOR']] },
+    { id: 'c3a1d2e4-0000-4000-8000-00000000a004', nome: 'Fátima Financeiro', email: 'financeiro@alfa.exemplo', vinculos: [['alfa', 'FINANCEIRO']] },
+  ],
+  /** Fazendas liberadas para quem não é administrador (RN-04). */
+  acessos: [
+    ['c3a1d2e4-0000-4000-8000-00000000a003', '7f1e0c2a-5d3b-4e6f-8a90-0000000000a1'],
+    ['c3a1d2e4-0000-4000-8000-00000000a004', '7f1e0c2a-5d3b-4e6f-8a90-0000000000a1'],
+  ],
+  /** §15: turma A da NS com João, Maria e Pedro (dados fictícios). */
+  turmas: [{ id: '7a000000-0000-4000-8000-0000000000a1', fazenda: '7f1e0c2a-5d3b-4e6f-8a90-0000000000a1', nome: 'Turma A', responsavel: 'Sebastião (fictício)' }],
+  colhedores: [
+    { id: 'c0000000-0000-4000-8000-0000000000a1', turma: '7a000000-0000-4000-8000-0000000000a1', nome: 'João da Silva (fictício)', apelido: 'João', cpf: '390.533.447-05', pix: 'joao.ficticio@exemplo.com' },
+    { id: 'c0000000-0000-4000-8000-0000000000a2', turma: '7a000000-0000-4000-8000-0000000000a1', nome: 'Maria de Souza (fictícia)', apelido: 'Maria', cpf: '275.484.389-23', pix: 'maria.ficticia@exemplo.com' },
+    { id: 'c0000000-0000-4000-8000-0000000000a3', turma: '7a000000-0000-4000-8000-0000000000a1', nome: 'Pedro Lima (fictício)', apelido: 'Pedro', cpf: '714.602.380-01', pix: '+55 35 90000-0003' },
   ],
 } as const;

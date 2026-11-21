@@ -4,6 +4,8 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   typedRoutes: false,
+  // O PDF dos recibos é montado no servidor (§6.3).
+  serverExternalPackages: ['@react-pdf/renderer'],
   async headers() {
     return [
       {

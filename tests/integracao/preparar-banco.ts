@@ -25,7 +25,7 @@ export default async function prepararBanco() {
   } finally {
     await db.$disconnect();
   }
-  const filho = { ...process.env, DATABASE_URL: app, DIRECT_URL: direta, APP_DB_PASSWORD: env.APP_DB_PASSWORD ?? 'cafe_app_dev' };
+  const filho = { ...process.env, DATABASE_URL: app, DIRECT_URL: direta, APP_DB_PASSWORD: env.APP_DB_PASSWORD ?? 'cafe_app_dev', DADOS_PESSOAIS_CHAVE: env.TEST_DADOS_PESSOAIS_CHAVE ?? 'dGVzdGUtY2hhdmUtZmljdGljaWEtMzItYnl0ZXMhISE=' };
   const rodar = (args: string[]) => execFileSync('npx', args, { stdio: 'pipe', env: filho });
   rodar(['prisma', 'migrate', 'deploy']);
   execFileSync('node', ['scripts/criar-papel-app.mjs'], { stdio: 'pipe', env: filho });
