@@ -8,6 +8,7 @@ import { divergenciaCarga } from '@/dominio/colheita';
 import { qtd } from '@/dominio/quantidade';
 import { auditar } from './auditoria';
 import { emitirAlerta } from './alertas';
+import { validarLoteParaContrato } from './regras-contrato';
 import { comTransacao, ehUuid, exigir, type Contexto, type Tx } from './transacao';
 import {
   certificadosAtivos, certificadosDeFazendas, codigoLivre, composicoes, dataLocal, dec, destinosDoLote, exigirFazendas, exigirMotivo, exigirTransicao,
@@ -235,7 +236,7 @@ async function fazendasDoLote(tx: Tx, lotes: { id: string; fazendaId: string | n
  * Valida e grava as entradas (RN-01, RN-04, RN-07, RN-11, RN-13, RN-16) e confere a capacidade do local (RN-24).
  * Chamada dentro da transação, com o movimento já travado ou recém-criado.
  */
-async function aplicarEntradas(tx: Tx, ctx: Contexto, mov: Mov, etapa: Etapa, novas: z.output<typeof entradaLoteSchema>[]) {
+export async function aplicarEntradas(tx: Tx, ctx: Contexto, mov: Mov, etapa: Etapa, novas: z.output<typeof entradaLoteSchema>[]) {
   if (new Set(novas.map((e) => e.loteId)).size !== novas.length) throw new ErroValidacao('O mesmo lote aparece duas vezes nas entradas.');
   await travarLotes(tx, novas.map((e) => e.loteId));
   const lotes = await tx.lote.findMany({ where: { id: { in: novas.map((e) => e.loteId) } }, include: { etapa: true } });
@@ -249,6 +250,8 @@ async function aplicarEntradas(tx: Tx, ctx: Contexto, mov: Mov, etapa: Etapa, no
   const ativas = await tx.movimentoEntrada.findMany({ where: { movimentoId: mov.id, cancelada: false }, include: { lote: { select: { safraId: true, unidade: true } } } });
   const blend = etapa.classe === 'SERVICO' && mov.servicoTipo === 'BLEND';
   const unidade = ativas[0]?.lote.unidade ?? mov.unidade;
+  // Sem entradas ainda (ex.: embarque criado a partir do contrato), vale a safra do primeiro lote.
+  const safraBase = ativas[0]?.lote.safraId ?? porId.get(novas[0]!.loteId)!.safraId;
 
   for (const n of novas) {
     const l = porId.get(n.loteId)!;
@@ -257,7 +260,8 @@ async function aplicarEntradas(tx: Tx, ctx: Contexto, mov: Mov, etapa: Etapa, no
     exigirTransicao(transicoes, l.etapa, etapa, l.fazendaId);
     exigirUnidade(l, etapa);
     if (l.unidade !== unidade) throw new ErroRegra('RN-11', 'Não se misturam lotes em medidas e em kg no mesmo movimento.');
-    if (!blend && l.safraId !== mov.safraId) throw new ErroRegra('RN-13', `O lote ${l.codigo} é de outra safra. Só um serviço do tipo Blend mistura safras.`);
+    if (etapa.classe === 'SAIDA' && mov.contratoId) await validarLoteParaContrato(tx, mov.contratoId, l.id);
+    if (!blend && l.safraId !== safraBase) throw new ErroRegra('RN-13', `O lote ${l.codigo} é de outra safra. Só um serviço do tipo Blend mistura safras.`);
 
     const q = new Decimal(n.quantidade);
     const reserva = await reservaParaEntrada(tx, n.reservaId ?? null, l.id, mov, etapa);
@@ -599,6 +603,8 @@ export async function reabrirSaida(ctx: Contexto, movimentoId: string, motivo: s
   return comTransacao(ctx, async (tx) => {
     const mov = await travarMovimento(tx, movimentoId);
     if (mov.status !== 'FINALIZADO') throw new ErroValidacao('A saída não está finalizada.');
+    const det = await tx.embarqueDetalhe.findFirst({ where: { movimentoId } });
+    if (det?.numeroDds) throw new ErroRegra('RN-14', `A DDS ${det.numeroDds} já foi informada: o embarque não pode ser reaberto.`);
     const atualizado = await tx.movimento.update({
       where: { id: mov.id },
       data: { status: 'ABERTO', qtdSaida: null, qtdPerda: null, percQuebra: null, dataResultado: null, finalizadoEm: null, finalizadoPor: null, alteradoPor: ctx.usuarioId },

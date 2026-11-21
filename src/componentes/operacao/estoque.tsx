@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import { acaoRemocao } from '@/app/(app)/operacao/acoes';
-import { Botao } from '@/componentes/ui/botao';
+import { Botao, estiloBotao } from '@/componentes/ui/botao';
 import { Campo, Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
 import { Indicador } from '@/componentes/ui/cartao';
 import { Aviso } from '@/componentes/ui/aviso';
 import { Documentos, num } from './comum';
 import { paraApi } from '@/lib/formatos';
+import { ReservarLotes, type ContratoAberto } from '@/componentes/comercial/reservar-lotes';
 
 type Opcao = { valor: string; rotulo: string; grupo?: string };
 type Linha = {
@@ -29,9 +30,10 @@ const FILTROS: { nome: string; rotulo: string; fonte: string; vazio: string }[] 
 ];
 
 /** Estoque (§12 item 10): lotes com saldo, filtros e seleção múltipla para o serviço. */
-export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar }: { dados: Dados; filtro: Record<string, string | undefined>; opcoes: Record<string, Opcao[]>; servicos: { id: string; nome: string }[]; podeLancar: boolean }) {
+export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contratos = [], podeReservar = false }: { dados: Dados; filtro: Record<string, string | undefined>; opcoes: Record<string, Opcao[]>; servicos: { id: string; nome: string }[]; podeLancar: boolean; contratos?: ContratoAberto[]; podeReservar?: boolean }) {
   const router = useRouter();
   const [sel, setSel] = useState<string[]>([]);
+  const [reservando, setReservando] = useState(false);
   const [removendo, setRemovendo] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [pendente, iniciar] = useTransition();
@@ -78,11 +80,22 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar }: { d
           {podeLancar ? servicos.map((s) => (
             <Botao key={s.id} disabled={!sel.length} onClick={() => router.push(`/etapas/${s.id}/novo?lotes=${sel.join(',')}`)}>Enviar para {s.nome}</Botao>
           )) : null}
-          <Botao variante="secundario" disabled title="Chega na Fase 5 (comercial)">Reservar para contrato</Botao>
-          <Botao variante="secundario" disabled title="Chega na Fase 6 (embarques)">Embarque</Botao>
+          {podeReservar ? <Botao variante="secundario" disabled={!sel.length || !contratos.length} title={contratos.length ? undefined : 'Nenhum contrato assinado com saldo a reservar'} onClick={() => setReservando(true)}>Reservar para contrato</Botao> : null}
+          <Link href="/embarques" className={estiloBotao({ variante: 'secundario' })}>Embarques</Link>
           <Documentos csv={{ nome: 'estoque.csv', linhas: [['Lote', 'Etapa', 'Safra', 'Fazenda', 'Tipo', 'Peneira', 'Saldo', 'Livre', 'Reservado', 'Unidade', 'Certificados', 'Locais'], ...dados.lotes.map((l) => [l.codigo, l.etapa, l.safra, l.fazenda, l.tipo, l.peneira, l.saldo, l.livre, l.reservado, l.unidade, l.certificados.join(' '), l.locais.map((x) => `${x.codigo}:${x.quantidade}`).join(' ')])] }} />
         </div>
       </div>
+      {reservando ? (
+        <section className="sombra grid gap-3 rounded-xl border border-linha bg-superficie p-4">
+          <h2 className="font-display text-[17px] font-semibold">Reservar para contrato</h2>
+          <ReservarLotes
+            key={sel.join(',')}
+            contratos={contratos}
+            lotes={dados.lotes.filter((l) => sel.includes(l.id) && l.unidade === 'KG' && new Decimal(l.livre).gt(0)).map((l) => ({ id: l.id, codigo: l.codigo, livre: l.livre, peneira: l.peneira, certificados: l.certificados, etapa: l.etapa }))}
+          />
+          <Botao variante="secundario" className="justify-self-start" onClick={() => setReservando(false)}>Fechar</Botao>
+        </section>
+      ) : null}
       <div className="sombra overflow-x-auto rounded-xl border border-linha bg-superficie">
         <table className="w-full min-w-[980px] border-collapse text-[13.5px]">
           <thead>
