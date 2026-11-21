@@ -10,6 +10,7 @@ import { Campo, Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
 import { Indicador } from '@/componentes/ui/cartao';
 import { Aviso } from '@/componentes/ui/aviso';
+import { paraApi } from '@/lib/formatos';
 import { ConfirmarComMotivo, Documentos, SeloSituacao, num } from './comum';
 
 type Opcao = { valor: string; rotulo: string; grupo?: string };
@@ -111,7 +112,8 @@ export function TelaColheita({ data, cargas, opcoes, podeLancar }: { data: strin
 }
 
 function NovaCarga({ opcoes, pendente, aoSalvar, aoCancelar }: { opcoes: Record<string, Opcao[]>; pendente: boolean; aoSalvar: (d: Parameters<typeof acaoRegistrarCarga>[0]) => void; aoCancelar: () => void }) {
-  const [fazendaId, setFazendaId] = useState(opcoes.fazendas?.[0]?.valor ?? '');
+  // Padrão: a primeira fazenda que tem talhão ativo.
+  const [fazendaId, setFazendaId] = useState((opcoes.fazendas ?? []).find((f) => opcoes.talhoes?.some((t) => t.grupo === f.valor))?.valor ?? opcoes.fazendas?.[0]?.valor ?? '');
   const talhoes = useMemo(() => (opcoes.talhoes ?? []).filter((t) => t.grupo === fazendaId), [opcoes.talhoes, fazendaId]);
   return (
     <form
@@ -121,7 +123,7 @@ function NovaCarga({ opcoes, pendente, aoSalvar, aoCancelar }: { opcoes: Record<
         const f = new FormData(e.currentTarget);
         aoSalvar({
           fazendaId, talhaoId: String(f.get('talhaoId')), safraId: String(f.get('safraId')), tipoCafeId: String(f.get('tipoCafeId')),
-          quantidade: String(f.get('quantidade')), modoColheita: f.get('modoColheita') as 'MANUAL', observacao: String(f.get('observacao') ?? ''),
+          quantidade: paraApi(String(f.get('quantidade'))), modoColheita: f.get('modoColheita') as 'MANUAL', observacao: String(f.get('observacao') ?? ''),
         });
       }}
     >

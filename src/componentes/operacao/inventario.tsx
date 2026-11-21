@@ -7,6 +7,7 @@ import { acaoAbrirInventario, acaoAprovarInventario, acaoCancelarInventario, aca
 import { Botao, estiloBotao } from '@/componentes/ui/botao';
 import { Entrada } from '@/componentes/ui/campo';
 import { Aviso } from '@/componentes/ui/aviso';
+import { paraApi } from '@/lib/formatos';
 import { ConfirmarComMotivo, Documentos, SeloSituacao, dataHora, num } from './comum';
 
 export function NovoInventario({ locais }: { locais: { valor: string; rotulo: string }[] }) {
@@ -57,7 +58,7 @@ export function DetalheInventario({ inv, podeContar, podeAprovar }: { inv: Inv; 
     const t = (contagem[i.id] ?? '').trim();
     if (!t) return null;
     try {
-      return new Decimal(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t).minus(i.qtdSistema);
+      return new Decimal(paraApi(t)).minus(i.qtdSistema);
     } catch {
       return null;
     }
@@ -105,7 +106,7 @@ export function DetalheInventario({ inv, podeContar, podeAprovar }: { inv: Inv; 
         </table>
       </div>
       {editavel && inv.itens.length ? (
-        <Botao className="justify-self-start" disabled={pendente} onClick={() => rodar(() => acaoContagem(inv.id, inv.itens.filter((i) => (contagem[i.id] ?? '').trim()).map((i) => ({ itemId: i.id, qtdContada: contagem[i.id]! }))))}>Salvar contagem</Botao>
+        <Botao className="justify-self-start" disabled={pendente} onClick={() => rodar(() => acaoContagem(inv.id, inv.itens.filter((i) => (contagem[i.id] ?? '').trim()).map((i) => ({ itemId: i.id, qtdContada: paraApi(contagem[i.id]!) }))))}>Salvar contagem</Botao>
       ) : null}
     </>
   );

@@ -7,6 +7,7 @@ import { Botao, estiloBotao } from '@/componentes/ui/botao';
 import { Campo, Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
 import { Aviso } from '@/componentes/ui/aviso';
+import { paraApi } from '@/lib/formatos';
 import { SeletorLotes, type Escolha, type LoteDisponivel } from './seletor-lotes';
 
 const SERVICOS = { REBENEFICIO: 'Rebenefício', CATACAO: 'Catação', BLEND: 'Blend', REAPROVEITAMENTO: 'Reaproveitamento' };
@@ -26,7 +27,7 @@ export function NovoMovimento({ etapa, lotes, locais, inicial }: { etapa: { id: 
           const r = await acaoAbrirMovimento({
             etapaId: etapa.id, localId: (f.get('localId') as string) || null, observacao: String(f.get('observacao') ?? ''),
             servicoTipo: (f.get('servicoTipo') as keyof typeof SERVICOS) || null,
-            entradas: escolhas.map((x) => ({ loteId: x.loteId, quantidade: x.quantidade, localId: x.localId ?? null })),
+            entradas: escolhas.map((x) => ({ loteId: x.loteId, quantidade: paraApi(x.quantidade), localId: x.localId ?? null })),
           });
           if (!r.ok) return setErro(r.erro);
           const avisos = r.avisos?.length ? `?avisos=${encodeURIComponent(r.avisos.join(' | '))}` : '';

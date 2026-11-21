@@ -7,3 +7,14 @@ export const un = (u: string) => (u === 'KG' ? 'kg' : 'med.');
 export const pct = (v: string | null | undefined, casas = 1) => (v == null ? '—' : `${formatarNumero(new Decimal(v).times(100), casas)}%`);
 export const dataHora = (d: string | Date | null | undefined) =>
   d ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(d)) : '—';
+
+/**
+ * Número digitado na tela, sempre no formato brasileiro: "1.200" = mil e duzentos, "0,95" = 95 centésimos.
+ * Devolve o texto canônico ("1200", "0.95") que a API recebe. Vazio continua vazio.
+ */
+export function paraApi(t: string): string {
+  return t.trim().replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+}
+
+/** Valor do servidor ("1200.000") para o campo da tela ("1200,000"). */
+export const paraCampo = (v: string) => v.replace('.', ',');

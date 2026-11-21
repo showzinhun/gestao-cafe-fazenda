@@ -11,6 +11,7 @@ import { Selecao } from '@/componentes/ui/selecao';
 import { Indicador } from '@/componentes/ui/cartao';
 import { Aviso } from '@/componentes/ui/aviso';
 import { Abas, ConfirmarComMotivo, Documentos, LinhaDoTempo, SeloSituacao, dataHora, num, pct, un } from './comum';
+import { paraApi } from '@/lib/formatos';
 import { SeletorLotes, type Escolha, type LoteDisponivel } from './seletor-lotes';
 
 type Opcao = { valor: string; rotulo: string; grupo?: string };
@@ -20,7 +21,7 @@ type Mov = {
   local: { id: string; codigo: string; nome: string } | null; fazenda: string; safra: string; talhao: string | null;
   quantidades: { entrada: string | null; saida: string | null; perda: string | null; quebra: string | null; rendimento: string | null; umidadeFinal: string | null };
   entradas: { id: string; loteId: string; codigo: string; etapa: string; tipo: string | null; tipoCafeId: string | null; quantidade: string | null; unidade: string; local: string | null; reserva: string }[];
-  lotes: { id: string; codigo: string; status: string; tipo: string | null; peneira: string | null; unidade: string; quantidade: string | null; percentual: string | null; saldo: string; certificados: string[]; locais: string[] }[];
+  lotes: { id: string; codigo: string; status: string; tipo: string | null; peneira: string | null; unidade: string; quantidade: string | null; percentual: string | null; saldo: string; certificados: string[]; locais: { codigo: string; quantidade: string }[] }[];
   composicao: { talhaoId: string; talhao: string; nome: string; fazenda: string; percentual: string; quantidade: string }[];
   linhaDoTempo: { etapa: string; feita: boolean; quando: string | null; quem: string | null }[];
   historico: { id: string; acao: string; quando: string; quem: string | null; depois: unknown }[];
@@ -33,7 +34,7 @@ function dec(t: string): Decimal | null {
   const s = t.trim();
   if (!s) return null;
   try {
-    const d = new Decimal(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s);
+    const d = new Decimal(paraApi(s));
     return d.isFinite() ? d : null;
   } catch {
     return null;
@@ -167,7 +168,7 @@ function Entradas({ m, disponiveis, podeLancar, pendente, rodar }: { m: Mov; dis
             <b>Acrescentar entradas</b>
             <SeletorLotes lotes={disponiveis.filter((l) => !m.entradas.some((e) => e.loteId === l.id))} aoMudar={setEscolhas} />
             <div className="flex gap-2">
-              <Botao disabled={pendente || !escolhas.length} onClick={() => rodar(() => acaoAdicionarEntradas(m.id, escolhas.map((x) => ({ loteId: x.loteId, quantidade: x.quantidade, localId: x.localId ?? null }))), () => setAcrescentar(false))}>Acrescentar</Botao>
+              <Botao disabled={pendente || !escolhas.length} onClick={() => rodar(() => acaoAdicionarEntradas(m.id, escolhas.map((x) => ({ loteId: x.loteId, quantidade: paraApi(x.quantidade), localId: x.localId ?? null }))), () => setAcrescentar(false))}>Acrescentar</Botao>
               <Botao variante="secundario" onClick={() => setAcrescentar(false)}>Cancelar</Botao>
             </div>
           </div>
@@ -208,14 +209,14 @@ function FormResultados({ m, opcoes, pendente, aoLancar }: { m: Mov; opcoes: Rec
   const conversao = modelo === 'CONVERSAO_ESTOQUE' && m.unidade === 'MEDIDA';
 
   const enviar = () => {
-    const base = { umidadeFinal: umidade || null };
+    const base = { umidadeFinal: umidade ? paraApi(umidade) : null };
     if (modelo === 'PERCENTUAL_POR_TIPO')
       return aoLancar({ ...base, parametros: { modelo, resultados: m.etapa.tiposResultado.filter((t) => dec(pcts[t.id] ?? '')).map((t) => ({ tipoCafeId: t.id, percentual: dec(pcts[t.id]!)!.div(100).toString() })) } });
     if (modelo === 'CAFE_E_PERDA')
       return aoLancar({ ...base, parametros: { modelo, fatores: grupos.map((g) => ({ tipoCafeId: g.tipoCafeId, fator: dec(fatores[g.tipoCafeId ?? ''] ?? '')?.div(100).toString() ?? '' })) } });
     if (modelo === 'CONVERSAO_ESTOQUE')
-      return aoLancar({ ...base, parametros: { modelo, lotes: linhas.map((l) => ({ quantidade: l.quantidade, peneiraId: l.peneiraId || null, tipoCafeId: l.tipoCafeId || null, localId: l.localId || null })) } });
-    if (modelo === 'POR_PENEIRA') return aoLancar({ ...base, parametros: { modelo, lotes: linhas.map((l) => ({ quantidade: l.quantidade, peneiraId: l.peneiraId, tipoCafeId: l.tipoCafeId || null })) } });
+      return aoLancar({ ...base, parametros: { modelo, lotes: linhas.map((l) => ({ quantidade: paraApi(l.quantidade), peneiraId: l.peneiraId || null, tipoCafeId: l.tipoCafeId || null, localId: l.localId || null })) } });
+    if (modelo === 'POR_PENEIRA') return aoLancar({ ...base, parametros: { modelo, lotes: linhas.map((l) => ({ quantidade: paraApi(l.quantidade), peneiraId: l.peneiraId, tipoCafeId: l.tipoCafeId || null })) } });
   };
 
   return (
@@ -306,7 +307,7 @@ function LotesGerados({ m, estoque, certificados, podeLancar, pendente, rodar }:
                   </span>
                 )}
               </td>
-              {estoque ? <td className="px-3 py-2.5 text-[12.5px]">{l.locais.join(' · ') || '—'}</td> : null}
+              {estoque ? <td className="px-3 py-2.5 text-[12.5px]">{l.locais.map((x) => `${x.codigo}: ${num(x.quantidade)}`).join(' · ') || '—'}</td> : null}
               <td className="px-3 py-2.5"><SeloSituacao status={l.status} lote /></td>
             </tr>
           ))}

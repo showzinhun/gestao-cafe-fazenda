@@ -4,6 +4,7 @@ import Decimal from 'decimal.js';
 import { Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
 import { num, un } from './comum';
+import { paraApi } from '@/lib/formatos';
 
 export type LoteDisponivel = {
   id: string; codigo: string; etapa: string; tipo: string | null; peneira: string | null; fazenda: string; unidade: string; saldo: string; livre: string;
@@ -24,7 +25,7 @@ export function SeletorLotes({ lotes, inicial = [], aoMudar }: { lotes: LoteDisp
   const visiveis = useMemo(() => lotes.filter((l) => !busca || `${l.codigo} ${l.tipo ?? ''} ${l.fazenda}`.toLowerCase().includes(busca.toLowerCase())), [lotes, busca]);
   const total = Object.values(sel).reduce((s, e) => {
     try {
-      return s.plus(e.quantidade.replace(/\./g, '').replace(',', '.') || 0);
+      return s.plus(paraApi(e.quantidade) || 0);
     } catch {
       return s;
     }

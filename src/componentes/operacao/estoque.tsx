@@ -10,6 +10,7 @@ import { Selecao } from '@/componentes/ui/selecao';
 import { Indicador } from '@/componentes/ui/cartao';
 import { Aviso } from '@/componentes/ui/aviso';
 import { Documentos, num } from './comum';
+import { paraApi } from '@/lib/formatos';
 
 type Opcao = { valor: string; rotulo: string; grupo?: string };
 type Linha = {
@@ -130,7 +131,7 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar }: { d
 function FormRemocao({ lote, locais, pendente, aoSalvar, aoCancelar }: { lote: Linha; locais: Opcao[]; pendente: boolean; aoSalvar: (d: { localOrigemId: string; localDestinoId: string; quantidade: string; motivo: string }) => void; aoCancelar: () => void }) {
   const [origem, setOrigem] = useState(lote.locais[0]?.id ?? '');
   return (
-    <form className="grid min-w-[230px] gap-1.5" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); aoSalvar({ localOrigemId: origem, localDestinoId: String(f.get('destino')), quantidade: String(f.get('quantidade')), motivo: String(f.get('motivo') ?? '') }); }}>
+    <form className="grid min-w-[230px] gap-1.5" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); aoSalvar({ localOrigemId: origem, localDestinoId: String(f.get('destino')), quantidade: paraApi(String(f.get('quantidade'))), motivo: String(f.get('motivo') ?? '') }); }}>
       <Selecao aria-label="Local de origem" value={origem} onChange={(e) => setOrigem(e.target.value)} className="h-8">{lote.locais.map((x) => <option key={x.id} value={x.id}>De {x.codigo} ({num(x.quantidade)})</option>)}</Selecao>
       <Selecao aria-label="Local de destino" name="destino" required className="h-8"><option value="">Para…</option>{locais.filter((x) => x.valor !== origem).map((x) => <option key={x.valor} value={x.valor}>{x.rotulo}</option>)}</Selecao>
       <Entrada aria-label="Quantidade a remover" name="quantidade" inputMode="decimal" placeholder="kg" required className="h-8" defaultValue={lote.locais.find((x) => x.id === origem)?.quantidade.replace('.', ',')} key={origem} />

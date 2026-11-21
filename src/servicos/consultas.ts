@@ -160,7 +160,7 @@ export async function detalheMovimento(ctx: Contexto, movimentoId: string) {
       lotes: m.lotes.map((l) => ({
         id: l.id, codigo: l.codigo, status: l.status, tipo: l.tipoCafe?.codigo ?? null, peneira: l.peneira?.codigo ?? null, unidade: l.unidade, quantidade: txt(l.quantidade),
         percentual: l.percentual?.toString() ?? null, saldo: saldoDoLote({ quantidade: dec(l.quantidade), quantidadeUtilizada: dec(l.quantidadeUtilizada) }).toFixed(3),
-        certificados: l.certificados.map((c) => c.certificado.codigo), locais: l.locais.map((x) => `${x.local.codigo}: ${dec(x.quantidade).toFixed(3)}`),
+        certificados: l.certificados.map((c) => c.certificado.codigo), locais: l.locais.map((x) => ({ codigo: x.local.codigo, quantidade: dec(x.quantidade).toFixed(3) })),
       })),
       composicao,
       linhaDoTempo,
