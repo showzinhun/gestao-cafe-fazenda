@@ -104,6 +104,10 @@ model Fazenda {
   transicoes FluxoTransicao[]
   precos     TabelaPrecoColheita[]
 
+  certificados FazendaCertificado[]
+  movimentos   Movimento[]
+  lotes        Lote[]
+
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
   @@map("fazenda")
@@ -204,6 +208,9 @@ model Talhao {
   fazenda Fazenda               @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
   precos  TabelaPrecoColheita[]
 
+  movimentos Movimento[]
+  lotes      LoteTalhao[]
+
   @@unique([fazendaId, codigo])
   @@unique([empresaId, id])
   @@map("talhao")
@@ -223,6 +230,9 @@ model Safra {
 
   precos TabelaPrecoColheita[]
 
+  movimentos Movimento[]
+  lotes      Lote[]
+
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
   @@map("safra")
@@ -241,6 +251,8 @@ model TipoCafe {
 
   resultados EtapaTipoResultado[]
 
+  lotes Lote[]
+
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
   @@map("tipo_cafe")
@@ -258,7 +270,10 @@ model Peneira {
   alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
   alteradoPor String?  @map("alterado_por") @db.Uuid
 
+  lotes Lote[]
+
   @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
   @@map("peneira")
 }
 
@@ -290,7 +305,11 @@ model Local {
   fazenda Fazenda? @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
   etapa   Etapa    @relation(fields: [empresaId, etapaId], references: [empresaId, id])
 
+  movimentos Movimento[]
+  reservas   Reserva[]
+
   @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
   @@map("local")
 }
 
@@ -305,6 +324,7 @@ model Turno {
   alteradoPor String?  @map("alterado_por") @db.Uuid
 
   @@unique([empresaId, nome])
+  @@unique([empresaId, id])
   @@map("turno")
 }
 
@@ -340,7 +360,11 @@ model Certificado {
   alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
   alteradoPor String?  @map("alterado_por") @db.Uuid
 
+  fazendas FazendaCertificado[]
+  lotes    LoteCertificado[]
+
   @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
   @@map("certificado")
 }
 
@@ -399,6 +423,9 @@ model Etapa {
   saidas         FluxoTransicao[]     @relation("origem")
   entradas       FluxoTransicao[]     @relation("destino")
   locais         Local[]
+
+  movimentos Movimento[]
+  lotes      Lote[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, prefixoLote])
@@ -479,4 +506,299 @@ model PerfilPermissao {
 
   @@id([empresaId, perfil, permissao])
   @@map("perfil_permissao")
+}
+
+// ---------------------------------------------------------------- Fase 2: rastreabilidade (§4.4, §8, §11)
+
+enum StatusCertificadoFazenda {
+  VALIDO
+  VENCIDO
+  SUSPENSO
+
+  @@map("status_certificado_fazenda")
+}
+
+/// Certificado de uma fazenda com validade (§4.8). Base da herança de certificação (RN-08).
+model FazendaCertificado {
+  id             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String                   @map("empresa_id") @db.Uuid
+  fazendaId      String                   @map("fazenda_id") @db.Uuid
+  certificadoId  String                   @map("certificado_id") @db.Uuid
+  numero         String?
+  validadeInicio DateTime                 @map("validade_inicio") @db.Date
+  validadeFim    DateTime                 @map("validade_fim") @db.Date
+  arquivoUrl     String?                  @map("arquivo_url")
+  status         StatusCertificadoFazenda @default(VALIDO)
+  criadoEm       DateTime                 @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor      String?                  @map("criado_por") @db.Uuid
+  alteradoEm     DateTime                 @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor    String?                  @map("alterado_por") @db.Uuid
+
+  fazenda     Fazenda     @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  certificado Certificado @relation(fields: [empresaId, certificadoId], references: [empresaId, id])
+
+  @@index([empresaId, fazendaId])
+  @@map("fazenda_certificado")
+}
+
+/// Numeração sequencial por empresa (ex.: movimentos de cada etapa). Incremento atômico.
+model Contador {
+  empresaId String @map("empresa_id") @db.Uuid
+  chave     String
+  valor     Int
+
+  @@id([empresaId, chave])
+  @@map("contador")
+}
+
+enum StatusMovimento {
+  ABERTO
+  PROCESSADO
+  FINALIZADO
+  ESTORNADO
+
+  @@map("status_movimento")
+}
+
+enum StatusLote {
+  ABERTO
+  PARCIAL
+  UTILIZADO
+  ESTORNADO
+
+  @@map("status_lote")
+}
+
+enum OrigemLote {
+  COLHEITA
+  TRANSFERENCIA
+  PROCESSO
+
+  @@map("origem_lote")
+}
+
+enum TipoServico {
+  BLEND
+  CATACAO
+  REBENEFICIO
+  REAPROVEITAMENTO
+
+  @@map("tipo_servico")
+}
+
+enum ModoColheita {
+  MANUAL
+  SEMIMECANIZADA
+  MECANICA
+
+  @@map("modo_colheita")
+}
+
+enum FinalidadeReserva {
+  TRANSFERENCIA
+  CONTRATO
+  SERVICO
+  EMBARQUE
+
+  @@map("finalidade_reserva")
+}
+
+enum OrigemReserva {
+  NENHUMA
+  TRANSFERENCIA
+  CONTRATO
+  SERVICO
+  EMBARQUE
+
+  @@map("origem_reserva")
+}
+
+enum StatusReserva {
+  ATIVA
+  CONSUMIDA
+  CANCELADA
+
+  @@map("status_reserva")
+}
+
+/// Um processamento numa etapa: consome lotes (entradas) e gera lotes (§2, §4.4).
+model Movimento {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String          @map("empresa_id") @db.Uuid
+  etapaId        String          @map("etapa_id") @db.Uuid
+  numero         Int
+  fazendaId      String?         @map("fazenda_id") @db.Uuid // nulo = mistura fazendas (MIX)
+  safraId        String          @map("safra_id") @db.Uuid
+  localId        String?         @map("local_id") @db.Uuid
+  turnoId        String?         @map("turno_id") @db.Uuid
+  talhaoId       String?         @map("talhao_id") @db.Uuid // só COLHEITA: talhão da carga
+  modoColheita   ModoColheita?   @map("modo_colheita")
+  contratoId     String?         @map("contrato_id") @db.Uuid // FK na Fase 5 (comercial)
+  servicoTipo    TipoServico?    @map("servico_tipo")
+  dataEntrada    DateTime        @default(now()) @map("data_entrada") @db.Timestamptz(6)
+  dataSaidaLocal DateTime?       @map("data_saida_local") @db.Timestamptz(6)
+  dataResultado  DateTime?       @map("data_resultado") @db.Timestamptz(6)
+  status         StatusMovimento @default(ABERTO)
+  conferente     String?
+  operador       String?
+  observacao     String?
+  unidade        Unidade
+  qtdEntrada     Decimal         @default(0) @map("qtd_entrada") @db.Decimal(14, 3)
+  qtdSaida       Decimal?        @map("qtd_saida") @db.Decimal(14, 3)
+  qtdPerda       Decimal?        @map("qtd_perda") @db.Decimal(14, 3)
+  percQuebra     Decimal?        @map("perc_quebra") @db.Decimal(9, 6)
+  rendimento     Decimal?        @db.Decimal(12, 3) // kg por medida (ESTOQUE, RN-10)
+  umidadeFinal   Decimal?        @map("umidade_final") @db.Decimal(5, 2)
+  misturaSafras  Json?           @map("mistura_safras") // BLEND com várias safras (RN-13)
+  finalizadoEm   DateTime?       @map("finalizado_em") @db.Timestamptz(6)
+  finalizadoPor  String?         @map("finalizado_por") @db.Uuid
+  estornadoEm    DateTime?       @map("estornado_em") @db.Timestamptz(6)
+  estornadoPor   String?         @map("estornado_por") @db.Uuid
+  motivoEstorno  String?         @map("motivo_estorno")
+  criadoEm       DateTime        @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor      String?         @map("criado_por") @db.Uuid
+  alteradoEm     DateTime        @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor    String?         @map("alterado_por") @db.Uuid
+
+  etapa    Etapa              @relation(fields: [empresaId, etapaId], references: [empresaId, id])
+  fazenda  Fazenda?           @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  safra    Safra              @relation(fields: [empresaId, safraId], references: [empresaId, id])
+  local    Local?             @relation(fields: [empresaId, localId], references: [empresaId, id])
+  talhao   Talhao?            @relation(fields: [empresaId, talhaoId], references: [empresaId, id])
+  entradas MovimentoEntrada[]
+  lotes    Lote[]
+  reservas Reserva[]
+
+  @@unique([empresaId, etapaId, numero])
+  @@unique([empresaId, id])
+  @@index([empresaId, localId, status])
+  @@map("movimento")
+}
+
+/// Lote consumido por um movimento. Cancelada = retirada enquanto o movimento estava aberto.
+model MovimentoEntrada {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String        @map("empresa_id") @db.Uuid
+  movimentoId   String        @map("movimento_id") @db.Uuid
+  loteId        String        @map("lote_id") @db.Uuid
+  quantidade    Decimal       @db.Decimal(14, 3)
+  unidade       Unidade
+  data          DateTime      @default(now()) @db.Timestamptz(6)
+  origemReserva OrigemReserva @default(NENHUMA) @map("origem_reserva")
+  reservaId     String?       @map("reserva_id") @db.Uuid
+  cancelada     Boolean       @default(false)
+  criadoEm      DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor     String?       @map("criado_por") @db.Uuid
+  alteradoEm    DateTime      @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor   String?       @map("alterado_por") @db.Uuid
+
+  movimento Movimento @relation(fields: [empresaId, movimentoId], references: [empresaId, id])
+  lote      Lote      @relation(fields: [empresaId, loteId], references: [empresaId, id])
+
+  @@unique([movimentoId, loteId])
+  @@index([empresaId, loteId])
+  @@map("movimento_entrada")
+}
+
+/// Quantidade identificada de café, sempre gerada por um movimento. Saldo = quantidade − utilizada (RN-01).
+model Lote {
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId           String     @map("empresa_id") @db.Uuid
+  codigo              String
+  movimentoId         String     @map("movimento_id") @db.Uuid
+  etapaId             String     @map("etapa_id") @db.Uuid
+  fazendaId           String?    @map("fazenda_id") @db.Uuid // nulo = MIX
+  safraId             String     @map("safra_id") @db.Uuid
+  tipoCafeId          String?    @map("tipo_cafe_id") @db.Uuid
+  peneiraId           String?    @map("peneira_id") @db.Uuid
+  unidade             Unidade
+  quantidade          Decimal    @db.Decimal(14, 3)
+  quantidadeUtilizada Decimal    @default(0) @map("quantidade_utilizada") @db.Decimal(14, 3)
+  quantidadeReservada Decimal    @default(0) @map("quantidade_reservada") @db.Decimal(14, 3)
+  percentual          Decimal?   @db.Decimal(9, 6)
+  umidade             Decimal?   @db.Decimal(5, 2)
+  status              StatusLote @default(ABERTO)
+  origemTipo          OrigemLote @map("origem_tipo")
+  data                DateTime   @default(now()) @db.Timestamptz(6)
+  observacao          String?
+  criadoEm            DateTime   @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor           String?    @map("criado_por") @db.Uuid
+  alteradoEm          DateTime   @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor         String?    @map("alterado_por") @db.Uuid
+
+  movimento    Movimento          @relation(fields: [empresaId, movimentoId], references: [empresaId, id])
+  etapa        Etapa              @relation(fields: [empresaId, etapaId], references: [empresaId, id])
+  fazenda      Fazenda?           @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  safra        Safra              @relation(fields: [empresaId, safraId], references: [empresaId, id])
+  tipoCafe     TipoCafe?          @relation(fields: [empresaId, tipoCafeId], references: [empresaId, id])
+  peneira      Peneira?           @relation(fields: [empresaId, peneiraId], references: [empresaId, id])
+  certificados LoteCertificado[]
+  talhoes      LoteTalhao[]
+  entradas     MovimentoEntrada[]
+  reservas     Reserva[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
+  @@index([empresaId, etapaId, status])
+  @@map("lote")
+}
+
+/// Certificado do lote (RN-08). Remoção no estoque fica registrada, nunca apagada.
+model LoteCertificado {
+  empresaId     String    @map("empresa_id") @db.Uuid
+  loteId        String    @map("lote_id") @db.Uuid
+  certificadoId String    @map("certificado_id") @db.Uuid
+  removidoEm    DateTime? @map("removido_em") @db.Timestamptz(6)
+  removidoPor   String?   @map("removido_por") @db.Uuid
+  motivoRemocao String?   @map("motivo_remocao")
+
+  lote        Lote        @relation(fields: [empresaId, loteId], references: [empresaId, id])
+  certificado Certificado @relation(fields: [empresaId, certificadoId], references: [empresaId, id])
+
+  @@id([loteId, certificadoId])
+  @@map("lote_certificado")
+}
+
+/// Composição materializada do lote por talhão (RN-09). Σ percentual = 1.
+model LoteTalhao {
+  empresaId             String  @map("empresa_id") @db.Uuid
+  loteId                String  @map("lote_id") @db.Uuid
+  talhaoId              String  @map("talhao_id") @db.Uuid
+  percentual            Decimal @db.Decimal(11, 10)
+  quantidadeEquivalente Decimal @map("quantidade_equivalente") @db.Decimal(14, 3)
+
+  lote   Lote   @relation(fields: [empresaId, loteId], references: [empresaId, id])
+  talhao Talhao @relation(fields: [empresaId, talhaoId], references: [empresaId, id])
+
+  @@id([loteId, talhaoId])
+  @@index([empresaId, talhaoId])
+  @@map("lote_talhao")
+}
+
+/// Quantidade de um lote separada para um uso (RN-07). Σ reservas ativas ≤ saldo.
+model Reserva {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId          String            @map("empresa_id") @db.Uuid
+  loteId             String            @map("lote_id") @db.Uuid
+  localId            String?           @map("local_id") @db.Uuid
+  quantidade         Decimal           @db.Decimal(14, 3)
+  finalidade         FinalidadeReserva
+  contratoId         String?           @map("contrato_id") @db.Uuid // FK na Fase 5
+  movimentoId        String?           @map("movimento_id") @db.Uuid
+  status             StatusReserva     @default(ATIVA)
+  observacao         String?
+  consumidaEm        DateTime?         @map("consumida_em") @db.Timestamptz(6)
+  canceladaEm        DateTime?         @map("cancelada_em") @db.Timestamptz(6)
+  motivoCancelamento String?           @map("motivo_cancelamento")
+  criadoEm           DateTime          @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor          String?           @map("criado_por") @db.Uuid
+  alteradoEm         DateTime          @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor        String?           @map("alterado_por") @db.Uuid
+
+  lote      Lote       @relation(fields: [empresaId, loteId], references: [empresaId, id])
+  local     Local?     @relation(fields: [empresaId, localId], references: [empresaId, id])
+  movimento Movimento? @relation(fields: [empresaId, movimentoId], references: [empresaId, id])
+
+  @@index([empresaId, loteId, status])
+  @@map("reserva")
 }
