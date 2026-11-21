@@ -59,6 +59,24 @@ Sem telas ainda. Os casos de uso ficam em `src/servicos` e as regras puras em `s
 
 Toda operação que mexe em quantidade roda numa transação com `SELECT … FOR UPDATE` nos lotes. Há um teste de concorrência em `tests/integracao/rastreabilidade.test.ts`.
 
+## Telas operacionais (Fase 3)
+
+- **Colheita** (`/colheita`): cargas do dia; cada carga gera o lote de colheita.
+- **Etapas** (`/etapas`): uma tela para todas as etapas de processamento, estoque e serviço.
+  - Lista de movimentos por situação e novo movimento com escolha dos lotes.
+  - Detalhe com linha do tempo, indicadores e as abas Entradas, Resultados, Composição por talhão, Rastreabilidade e Histórico.
+  - Ações: lançar ou apagar resultados e estornar, com confirmação e motivo na própria página.
+- **Estoque** (`/estoque`): filtros, totais em kg e sacas, seleção múltipla para o serviço e remoção entre locais.
+- **Inventários** (`/estoque/inventarios`): contagem e aprovação com ajuste.
+- **Rastreabilidade** (`/rastreabilidade`): busca; árvore para cima e para baixo com o mapa dos talhões de origem.
+- **Busca rápida** na barra de título: "TE#12" abre o movimento; um código de lote abre a rastreabilidade.
+
+Para ver as telas com dados no banco de desenvolvimento, rode os passos 3–8 do §15:
+
+```bash
+npx tsx --env-file=.env scripts/demo-cenario.ts
+```
+
 ## Testes
 
 ```bash
