@@ -1,7 +1,7 @@
 /** Dados fictícios do seed (regra 13), usados também pelos testes. Cenário §15, Preparação. */
 
 /** Retângulo (polígono fechado) com largura e altura em metros, a partir do canto noroeste. */
-function retangulo(lon: number, lat: number, larguraM: number, alturaM: number) {
+export function retangulo(lon: number, lat: number, larguraM: number, alturaM: number) {
   const dLon = larguraM / (111320 * Math.cos((lat * Math.PI) / 180));
   const dLat = alturaM / 110574;
   const r = (n: number) => Math.round(n * 1e6) / 1e6;
