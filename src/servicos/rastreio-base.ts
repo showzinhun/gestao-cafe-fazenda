@@ -170,3 +170,36 @@ export async function destinosDoLote(tx: Tx, loteIds: string[]): Promise<string>
   });
   return [...new Set(es.map((e) => `${e.movimento.etapa.nome} ${e.movimento.etapa.prefixoLote}#${e.movimento.numero}`))].join(', ');
 }
+
+// ---------------------------------------------------------------- saldo por local (RN-25)
+
+/**
+ * Tira q do lote num local do estoque. Sem local informado, usa o único local com saldo suficiente.
+ * Chamar com o lote já travado (FOR UPDATE): o lote protege as linhas de lote_local dele.
+ */
+export async function baixarLocal(tx: Tx, lote: { id: string; codigo: string }, localId: string | null, q: Decimal): Promise<string> {
+  const linhas = (await tx.loteLocal.findMany({ where: { loteId: lote.id }, include: { local: { select: { codigo: true } } } })).filter((l) => dec(l.quantidade).gt(0));
+  let alvo = localId ? linhas.find((l) => l.localId === localId) : undefined;
+  if (!localId) {
+    const suficientes = linhas.filter((l) => dec(l.quantidade).gte(q));
+    if (linhas.length === 1 || suficientes.length === 1) alvo = linhas.length === 1 ? linhas[0] : suficientes[0];
+    else if (linhas.length > 1)
+      throw new ErroRegra('RN-25', `O lote ${lote.codigo} está em ${linhas.map((l) => `${l.local.codigo} (${dec(l.quantidade).toFixed(3)})`).join(', ')}: informe de qual local sai.`);
+  }
+  if (!alvo) throw new ErroRegra('RN-25', `O lote ${lote.codigo} não tem saldo nesse local.`);
+  if (dec(alvo.quantidade).lt(q)) throw new ErroRegra('RN-25', `O lote ${lote.codigo} tem ${dec(alvo.quantidade).toFixed(3)} no local ${alvo.local.codigo}; pedido ${q.toFixed(3)}.`);
+  await tx.loteLocal.update({ where: { loteId_localId: { loteId: lote.id, localId: alvo.localId } }, data: { quantidade: qtd(dec(alvo.quantidade).minus(q)).toFixed(3) } });
+  return alvo.localId;
+}
+
+/** Devolve (ou põe) q do lote num local. */
+export async function somarLocal(tx: Tx, empresaId: string, loteId: string, localId: string, q: Decimal): Promise<void> {
+  const atual = await tx.loteLocal.findUnique({ where: { loteId_localId: { loteId, localId } } });
+  if (atual) await tx.loteLocal.update({ where: { loteId_localId: { loteId, localId } }, data: { quantidade: qtd(dec(atual.quantidade).plus(q)).toFixed(3) } });
+  else await tx.loteLocal.create({ data: { empresaId, loteId, localId, quantidade: qtd(q).toFixed(3) } });
+}
+
+/** Lote estornado não ocupa local. */
+export async function zerarLocais(tx: Tx, loteId: string): Promise<void> {
+  await tx.loteLocal.updateMany({ where: { loteId }, data: { quantidade: '0' } });
+}
