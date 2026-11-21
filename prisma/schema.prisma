@@ -1,0 +1,133 @@
+// Fase 0: plataforma e acesso (§4.1), fazenda mínima e auditoria (§4.9).
+// Convenções (§4): tabelas e colunas em snake_case, ids UUID.
+// O isolamento por empresa é feito por políticas RLS (migração *_rls_multiempresa).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // papel da aplicação, sujeito à RLS
+  directUrl = env("DIRECT_URL") // dono das tabelas: migrações e seed
+}
+
+enum StatusEmpresa {
+  ATIVA
+  SUSPENSA
+
+  @@map("status_empresa")
+}
+
+enum Perfil {
+  ADMIN_EMPRESA
+  GESTOR
+  OPERADOR
+  APONTADOR
+  FINANCEIRO
+  COMERCIAL
+  CONSULTA
+
+  @@map("perfil")
+}
+
+model Empresa {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome          String
+  cnpj          String?
+  plano         String        @default("BASICO")
+  status        StatusEmpresa @default(ATIVA)
+  configuracoes Json          @default("{}")
+  criadoEm      DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
+  alteradoEm    DateTime      @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+
+  usuarios  UsuarioEmpresa[]
+  fazendas  Fazenda[]
+  auditoria Auditoria[]
+
+  @@map("empresa")
+}
+
+model Usuario {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome       String
+  email      String   @unique
+  senhaHash  String   @map("senha_hash")
+  ativo      Boolean  @default(true)
+  criadoEm   DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  alteradoEm DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+
+  empresas UsuarioEmpresa[]
+  fazendas UsuarioFazenda[]
+
+  @@map("usuario")
+}
+
+model UsuarioEmpresa {
+  usuarioId String   @map("usuario_id") @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  perfil    Perfil
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@id([usuarioId, empresaId])
+  @@index([empresaId])
+  @@map("usuario_empresa")
+}
+
+/// Fazenda mínima da Fase 0; os demais campos do §4.2 entram na Fase 1.
+model Fazenda {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  codigo      String
+  nome        String
+  municipio   String?
+  uf          String?  @db.Char(2)
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  empresa  Empresa          @relation(fields: [empresaId], references: [id])
+  usuarios UsuarioFazenda[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
+  @@map("fazenda")
+}
+
+model UsuarioFazenda {
+  usuarioId String @map("usuario_id") @db.Uuid
+  fazendaId String @map("fazenda_id") @db.Uuid
+  empresaId String @map("empresa_id") @db.Uuid
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  fazenda Fazenda @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+
+  @@id([usuarioId, fazendaId])
+  @@index([empresaId])
+  @@map("usuario_fazenda")
+}
+
+model Auditoria {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String   @map("empresa_id") @db.Uuid
+  entidade      String
+  entidadeId    String   @map("entidade_id")
+  acao          String
+  antes         Json?
+  depois        Json?
+  usuarioId     String?  @map("usuario_id") @db.Uuid
+  data          DateTime @default(now()) @db.Timestamptz(6)
+  ip            String?
+  dispositivoId String?  @map("dispositivo_id")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId, entidade, entidadeId])
+  @@map("auditoria")
+}
