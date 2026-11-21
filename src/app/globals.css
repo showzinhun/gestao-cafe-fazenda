@@ -52,3 +52,18 @@ body { font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
 .sombra { box-shadow: var(--sombra); }
 .rotulo-secao { font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; }
 :focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
+
+/* Rótulo do talhão no mapa (marcador HTML) */
+.rotulo-talhao {
+  pointer-events: none;
+  font: 600 12px/1 var(--font-mono, ui-monospace, monospace);
+  color: #132a1f;
+  background: rgb(255 255 255 / 0.85);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--destaque);
+}
