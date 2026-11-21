@@ -21,7 +21,8 @@
     "test:integracao": "vitest run --project integracao",
     "test:e2e": "playwright test",
     "predev": "node scripts/copiar-worker-mapa.mjs",
-    "prebuild": "node scripts/copiar-worker-mapa.mjs"
+    "prebuild": "node scripts/copiar-worker-mapa.mjs",
+    "empresa:criar": "tsx scripts/criar-empresa.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
