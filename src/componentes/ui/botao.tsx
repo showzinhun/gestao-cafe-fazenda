@@ -9,6 +9,7 @@ export const estiloBotao = cva(
         primario: 'bg-destaque text-destaque-tinta shadow-sm hover:brightness-110',
         secundario: 'border border-linha bg-superficie text-tinta hover:border-destaque hover:bg-destaque-suave',
         texto: 'text-destaque underline-offset-2 hover:underline',
+        perigo: 'border border-erro/50 bg-superficie text-erro hover:bg-erro-fundo',
       },
       tamanho: { normal: 'h-10 px-4', pequeno: 'h-8 px-3 text-[13px]' },
     },

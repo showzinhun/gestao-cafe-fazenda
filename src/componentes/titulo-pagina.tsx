@@ -1,3 +1,5 @@
+import { BuscaRapida } from './busca-rapida';
+
 /** Barra de título fixa com grupo e nome da tela (§12). */
 export function TituloPagina({ grupo, titulo, children }: { grupo: string; titulo: string; children?: React.ReactNode }) {
   return (
@@ -6,7 +8,10 @@ export function TituloPagina({ grupo, titulo, children }: { grupo: string; titul
         <span className="rotulo-secao text-ouro">{grupo}</span>
         <h1 className="font-display text-[26px] leading-tight font-semibold">{titulo}</h1>
       </div>
-      {children}
+      <div className="flex flex-wrap items-center gap-2.5 print:hidden">
+        {children}
+        <BuscaRapida />
+      </div>
     </div>
   );
 }
