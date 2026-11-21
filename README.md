@@ -99,7 +99,17 @@ Usuários fictícios novos no seed: `apontador@alfa.exemplo` (APONTADOR, fazenda
 - **Estoque**: selecione lotes e use **Reservar para contrato**. Sem amostra aprovada do lote para o cliente aparece só um aviso.
 - **Embarques** (`/embarques`): nascem do contrato e seguem programação (os kg ficam reservados para o embarque, RN-26) → carregamento com motorista, placa, lacres e pesagem (diferença acima do limite exige motivo, RN-27) → notas fiscais → finalizar. Romaneio A4 em PDF. Informada a DDS, o embarque não reabre (RN-14).
 
-O dossiê EUDR/certificações do embarque chega na Fase 7.
+## Certificações, EUDR e dossiê (Fase 7)
+
+- **Certificados por fazenda** (na página da fazenda): número, validade e PDF. Alertas a 60, 30 e 7 dias do fim. Suspender pede motivo. Um lote só herda o certificado se todas as fazendas da composição o tiverem válido (RN-08).
+- **Geometria do talhão**: além das validações da Fase 1, sobreposição com talhão de outro produtor gera alerta; acima de 4 ha, ponto não vale para a EUDR.
+- **Checagem de desmatamento** (`/conformidade`): provedor de demonstração (sempre "sem alerta") ou importação do laudo em PDF. A checagem vale para a versão do desenho; mudou a geometria, é preciso refazer.
+- **RN-18**: contrato que exige EUDR não reserva lote com talhão sem geometria válida ou com alerta, e o embarque não finaliza com pendência no dossiê.
+- **Dossiê do embarque**: origem por talhão (kg e %), checagens, certificados válidos na data, cadeia de movimentos e pendências, em PDF, GeoJSON e CSV, com hash SHA-256. A versão da finalização fica congelada.
+- **Pacote para a exportadora** (§17): emitido ao finalizar (`pacote-EB-…-v1.json` e `.geojson`, com hash). Reabrir não muda o pacote; reemitir gera nova versão com motivo.
+- **Rebaixamento (RN-28)**: no serviço e no "vender como" do carregamento, perder certificado de alguma origem exige motivo e fica registrado com os kg.
+- **Limite de quebra no serviço (RN-31)**: configurável por tipo em `empresa.configuracoes.limite_quebra_servico` (ex.: `{"CATACAO": "0.05"}`).
+- **Estoque**: coluna e filtro "apto EUDR".
 
 ## Testes
 
