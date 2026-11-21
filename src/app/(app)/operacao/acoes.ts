@@ -34,7 +34,7 @@ type Arg<F> = F extends (c: never, ...a: infer A) => unknown ? A : never;
 export async function acaoRegistrarCarga(d: Arg<typeof registrarCarga>[0]) {
   return executar('Carga registrada.', async () => {
     const r = await registrarCarga(await ctx(), d);
-    return { movimentoId: r.movimento.id, lote: r.lote.codigo };
+    return { movimentoId: r.movimento.id, lote: r.lote.codigo, alertas: r.alertas.map((a) => a.mensagem) };
   });
 }
 

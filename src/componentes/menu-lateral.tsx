@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Boxes, ClipboardList, Droplets, FileCheck2, GitBranch, Home, Leaf, Map, Menu, Settings2, ShieldCheck, Ship, Smartphone, Sprout, Users, X } from 'lucide-react';
+import { Boxes, ClipboardList, Droplets, FileCheck2, GitBranch, Home, Leaf, Map, Menu, Settings2, ShieldCheck, Ship, Smartphone, Sprout, Users, Wallet, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Logo } from './marca';
 
@@ -13,6 +13,8 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
   { titulo: 'Operação', itens: [
     { href: '/inicio', rotulo: 'Início', icone: Home },
     { href: '/colheita', rotulo: 'Colheita', icone: Sprout },
+    { href: '/colheita/colhedores', rotulo: 'Colhedores', icone: Users },
+    { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
     { href: '/etapas', rotulo: 'Etapas', icone: ClipboardList, tambem: ['/movimentos'] },
     { href: '/secagem', rotulo: 'Secagem', icone: Droplets, fase: 5 },
     { href: '/estoque', rotulo: 'Estoque', icone: Boxes },
@@ -36,7 +38,12 @@ export function MenuLateral({ empresa, usuario, perfil, acaoSair, acaoTrocar }: 
   const caminho = usePathname();
   const [aberto, setAberto] = useState(false);
   const ini = usuario.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-  const ativo = (href: string) => GRUPOS.some((g) => g.itens.some((i) => i.href === href && i.tambem?.some((p) => caminho.startsWith(p)))) || caminho === href || (href !== '/inicio' && href !== '/cadastros' && caminho.startsWith(href + '/')) || (href === '/cadastros' && caminho.startsWith('/cadastros/') && !caminho.startsWith('/cadastros/fazendas'));
+  const ativo = (href: string) => {
+    if (href === '/colheita') return caminho === '/colheita';
+    if (GRUPOS.some((g) => g.itens.some((i) => i.href === href && i.tambem?.some((p) => caminho.startsWith(p))))) return true;
+    if (href === '/cadastros') return caminho === '/cadastros' || (caminho.startsWith('/cadastros/') && !caminho.startsWith('/cadastros/fazendas'));
+    return caminho === href || (href !== '/inicio' && caminho.startsWith(href + '/'));
+  };
   return (
     <aside className={cn('z-40 bg-menu text-menu-tinta', 'max-lg:sticky max-lg:top-0', 'lg:fixed lg:inset-y-0 lg:left-0 lg:w-63 lg:overflow-y-auto')}>
       <div className="flex min-h-full flex-col gap-1 px-3 py-3 lg:py-4">

@@ -25,6 +25,7 @@ export async function listarCargas(ctx: Contexto, filtro: { data?: string } = {}
         talhao: { select: { codigo: true, nome: true } },
         fazenda: { select: { codigo: true, nome: true } },
         lotes: { select: { id: true, codigo: true, quantidade: true, quantidadeUtilizada: true, status: true, tipoCafe: { select: { codigo: true } } } },
+        carga: { select: { medidasApontadas: true, divergencia: true, divergenciaPerc: true, alertaDivergencia: true, tipoTransporte: true, operadorMaquina: true, _count: { select: { apontamentos: true } } } },
       },
       orderBy: [{ dataEntrada: 'desc' }, { numero: 'desc' }],
       take: 300,
@@ -34,6 +35,7 @@ export async function listarCargas(ctx: Contexto, filtro: { data?: string } = {}
       return {
         id: m.id, numero: m.numero, status: m.status, data: m.dataEntrada, modoColheita: m.modoColheita, quantidade: txt(m.qtdEntrada),
         fazenda: m.fazenda?.codigo ?? null, talhao: m.talhao ? `${m.talhao.codigo} · ${m.talhao.nome}` : null, observacao: m.observacao,
+        carga: m.carga ? { apontadas: txt(m.carga.medidasApontadas), divergencia: txt(m.carga.divergencia), divergenciaPerc: m.carga.divergenciaPerc?.toString() ?? null, alerta: m.carga.alertaDivergencia, apontamentos: m.carga._count.apontamentos, transporte: m.carga.tipoTransporte, operador: m.carga.operadorMaquina } : null,
         lote: l ? { id: l.id, codigo: l.codigo, tipo: l.tipoCafe?.codigo ?? null, saldo: saldoDoLote({ quantidade: dec(l.quantidade), quantidadeUtilizada: dec(l.quantidadeUtilizada) }).toFixed(3), status: l.status } : null,
       };
     });

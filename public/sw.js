@@ -1,6 +1,8 @@
-// Service worker mínimo da Fase 0: torna o app instalável e guarda a página offline.
-// A fila de sincronização (Dexie, RN-23) e o cache das telas de campo chegam na Fase 4.
-const VERSAO = 'cafe-v1';
+// Service worker do app de campo (§6.1, RN-23).
+// - Arquivos estáticos do Next: cache primeiro (têm hash no nome).
+// - Telas do campo (/campo...): rede primeiro, com cópia para abrir sem sinal.
+// - Os apontamentos em si ficam no IndexedDB (Dexie) e são sincronizados pela própria tela.
+const VERSAO = 'cafe-v2';
 const OFFLINE = '/offline.html';
 
 self.addEventListener('install', (e) => {
@@ -14,6 +16,30 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.mode !== 'navigate') return;
-  e.respondWith(fetch(e.request).catch(() => caches.match(OFFLINE)));
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (url.pathname.startsWith('/_next/static/')) {
+    e.respondWith(
+      caches.match(req).then((c) => c || fetch(req).then((r) => {
+        if (r.ok) caches.open(VERSAO).then((cache) => cache.put(req, r.clone()));
+        return r;
+      })),
+    );
+    return;
+  }
+
+  if (req.mode === 'navigate') {
+    const doCampo = url.pathname === '/campo' || url.pathname.startsWith('/campo/');
+    e.respondWith(
+      fetch(req)
+        .then((r) => {
+          if (doCampo && r.ok) caches.open(VERSAO).then((cache) => cache.put(req, r.clone()));
+          return r;
+        })
+        .catch(() => caches.match(req).then((c) => c || caches.match(OFFLINE))),
+    );
+  }
 });

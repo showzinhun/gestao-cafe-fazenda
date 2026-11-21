@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Droplets, Home, RefreshCw, Sprout } from 'lucide-react';
+import { Droplets, Home, Sprout } from 'lucide-react';
+import { IndicadorSync } from '@/componentes/campo/indicador-sync';
 import { exigirContexto } from '@/lib/contexto';
 import { listarEmpresasDoUsuario } from '@/servicos/acesso';
 import { Logo } from '@/componentes/marca';
@@ -18,15 +19,13 @@ export default async function LayoutCampo({ children }: { children: React.ReactN
           <p className="rotulo-secao truncate text-menu-ouro">{empresa?.nome}</p>
           <p className="font-display text-[16px] font-semibold">Campo</p>
         </div>
-        <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[12px]" title="Sincronização offline chega na Fase 4">
-          <RefreshCw className="size-3.5" /> Em dia
-        </span>
+        <IndicadorSync empresaId={ctx.empresaId} />
       </header>
       <main className="flex-1 px-4 py-4">{children}</main>
       <nav aria-label="Campo" className="sticky bottom-0 grid grid-cols-3 border-t border-linha bg-superficie pb-[env(safe-area-inset-bottom)]">
         {[
           { href: '/campo', rotulo: 'Início', icone: Home },
-          { href: '/campo', rotulo: 'Apontar', icone: Sprout },
+          { href: '/campo/apontar', rotulo: 'Apontar', icone: Sprout },
           { href: '/campo', rotulo: 'Secagem', icone: Droplets },
         ].map((i) => (
           <Link key={i.rotulo} href={i.href} className="flex flex-col items-center gap-1 py-2.5 text-[12px] font-medium text-tinta-2">
