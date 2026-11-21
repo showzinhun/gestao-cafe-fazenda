@@ -14,7 +14,8 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORTA}`, trace: 'off', locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /campo\.spec\.ts/ },
-    { name: 'celular', use: { ...devices['Pixel 7'] }, testMatch: /campo\.spec\.ts/ },
+    // Depois do desktop: os testes do celular criam lotes e não podem mudar a numeração que o desktop confere.
+    { name: 'celular', use: { ...devices['Pixel 7'] }, testMatch: /campo\.spec\.ts/, dependencies: ['desktop'] },
   ],
   webServer: {
     command: `npx next start -p ${PORTA}`,

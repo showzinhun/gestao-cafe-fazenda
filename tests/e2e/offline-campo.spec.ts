@@ -63,7 +63,7 @@ test('passos 1, 2 e 9: apontamento offline, sincronização e fechamento', async
     });
   });
   await page.getByRole('button', { name: 'Sincronizar' }).click();
-  await expect(page.getByText('3 apontamento(s) sincronizado(s).')).toBeVisible();
+  await expect(page.getByText('3 registro(s) sincronizado(s).')).toBeVisible();
   const apontados = await (await page.request.get(`/api/colheita/apontamentos?data=${hoje}`)).json();
   expect(apontados.map((a: { colhedor: string; medidas: string }) => `${a.colhedor.split(' (')[0]}=${a.medidas}`).sort())
     .toEqual(['João da Silva=40.000', 'Maria de Souza=35.000', 'Pedro Lima=25.000']);
