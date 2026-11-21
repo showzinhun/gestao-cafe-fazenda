@@ -12,7 +12,10 @@ export default function Campo() {
         <span className="grid size-14 place-items-center rounded-xl bg-destaque-suave text-destaque"><Sprout className="size-7" /></span>
         <span><b className="block text-[16px]">Apontamento de colheita</b><small className="text-tinta-2">Medidas por colhedor e talhão, mesmo sem sinal</small></span>
       </Link>
-      <Atalho icone={<Droplets className="size-7" />} titulo="Leituras de secagem" detalhe="Umidade e temperatura · Fase 5" />
+      <Link href="/campo/secagem" className="sombra flex items-center gap-4 rounded-2xl border border-linha bg-superficie p-5">
+        <span className="grid size-14 place-items-center rounded-xl bg-destaque-suave text-destaque"><Droplets className="size-7" /></span>
+        <span><b className="block text-[16px]">Leituras de secagem</b><small className="text-tinta-2">Umidade e temperatura, mesmo sem sinal</small></span>
+      </Link>
       <Link href="/inicio" className="mt-2 text-center text-[13px] text-destaque underline-offset-2 hover:underline">
         Abrir a versão completa
       </Link>
@@ -20,14 +23,3 @@ export default function Campo() {
   );
 }
 
-function Atalho({ icone, titulo, detalhe }: { icone: React.ReactNode; titulo: string; detalhe: string }) {
-  return (
-    <div aria-disabled className="sombra flex items-center gap-4 rounded-2xl border border-linha bg-superficie p-5 opacity-80">
-      <span className="grid size-14 place-items-center rounded-xl bg-destaque-suave text-destaque">{icone}</span>
-      <span>
-        <b className="block text-[16px]">{titulo}</b>
-        <small className="text-tinta-2">{detalhe}</small>
-      </span>
-    </div>
-  );
-}

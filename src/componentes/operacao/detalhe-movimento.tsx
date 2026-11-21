@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import { Plus, Trash2 } from 'lucide-react';
-import { acaoAdicionarEntradas, acaoApagarResultados, acaoCertificadosLote, acaoEstornar, acaoLancarResultados, acaoRemoverEntrada } from '@/app/(app)/operacao/acoes';
+import { acaoAdicionarEntradas, acaoApagarResultados, acaoCertificadosLote, acaoEstornar, acaoLancarLeitura, acaoLancarResultados, acaoRemoverEntrada } from '@/app/(app)/operacao/acoes';
+import { CurvaUmidade } from '@/componentes/secagem/curva';
+import { formatarNumero } from '@/lib/formatacao';
 import { Botao, estiloBotao } from '@/componentes/ui/botao';
 import { Campo, Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
@@ -23,11 +25,14 @@ type Mov = {
   entradas: { id: string; loteId: string; codigo: string; etapa: string; tipo: string | null; tipoCafeId: string | null; quantidade: string | null; unidade: string; local: string | null; reserva: string }[];
   lotes: { id: string; codigo: string; status: string; tipo: string | null; peneira: string | null; unidade: string; quantidade: string | null; percentual: string | null; saldo: string; certificados: string[]; locais: { codigo: string; quantidade: string }[] }[];
   composicao: { talhaoId: string; talhao: string; nome: string; fazenda: string; percentual: string; quantidade: string }[];
+  ultimaUmidade: string | null;
   linhaDoTempo: { etapa: string; feita: boolean; quando: string | null; quem: string | null }[];
   historico: { id: string; acao: string; quando: string; quem: string | null; depois: unknown }[];
 };
-type Aba = 'entradas' | 'resultados' | 'composicao' | 'rastreabilidade' | 'historico';
-const ACOES: Record<string, string> = { CRIAR: 'Movimento aberto', CARGA: 'Carga registrada', ENTRADA: 'Entradas acrescentadas', RETIRAR_ENTRADA: 'Entrada retirada', RESULTADO: 'Resultados lançados', APAGAR_RESULTADOS: 'Resultados apagados', ESTORNAR: 'Estornado', FINALIZAR: 'Finalizado', REABRIR: 'Reaberto' };
+type Aba = 'entradas' | 'resultados' | 'leituras' | 'composicao' | 'rastreabilidade' | 'historico';
+type Curva = { metaMin: string | null; metaMax: string | null; leituras: { id: string; dataHora: string; umidade: string; temperaturaMassa: string | null; temperaturaAr: string | null; observacao: string | null }[]; previsao: { horas: number; em: string } | null };
+const ACOES: Record<string, string> = {
+  SINCRONIZAR: 'Sincronizado', CRIAR: 'Movimento aberto', CARGA: 'Carga registrada', ENTRADA: 'Entradas acrescentadas', RETIRAR_ENTRADA: 'Entrada retirada', RESULTADO: 'Resultados lançados', APAGAR_RESULTADOS: 'Resultados apagados', ESTORNAR: 'Estornado', FINALIZAR: 'Finalizado', REABRIR: 'Reaberto' };
 
 /** Texto do usuário ("1.234,5" ou "0,20") → Decimal; inválido vira null. */
 function dec(t: string): Decimal | null {
@@ -41,9 +46,9 @@ function dec(t: string): Decimal | null {
   }
 }
 
-export function DetalheMovimento({ m, disponiveis, opcoes, podeLancar, podeEstornar, avisos }: { m: Mov; disponiveis: LoteDisponivel[]; opcoes: Record<string, Opcao[]>; podeLancar: boolean; podeEstornar: boolean; avisos: string[] }) {
+export function DetalheMovimento({ m, disponiveis, opcoes, podeLancar, podeEstornar, avisos, curva, abaInicial, podeLer }: { m: Mov; disponiveis: LoteDisponivel[]; opcoes: Record<string, Opcao[]>; podeLancar: boolean; podeEstornar: boolean; avisos: string[]; curva: Curva | null; abaInicial?: string; podeLer: boolean }) {
   const router = useRouter();
-  const [aba, setAba] = useState<Aba>(m.status === 'ABERTO' && m.entradas.length ? 'resultados' : m.lotes.length ? 'resultados' : 'entradas');
+  const [aba, setAba] = useState<Aba>(abaInicial === 'leituras' && curva ? 'leituras' : m.status === 'ABERTO' && m.entradas.length ? 'resultados' : m.lotes.length ? 'resultados' : 'entradas');
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro' | 'aviso'; texto: string } | null>(avisos.length ? { tipo: 'aviso', texto: avisos.join(' ') } : null);
   const [pendente, iniciar] = useTransition();
   const rodar = (f: () => Promise<{ ok: boolean; mensagem?: string; erro?: string; avisos?: string[] }>, depois?: () => void) =>
@@ -97,6 +102,7 @@ export function DetalheMovimento({ m, disponiveis, opcoes, podeLancar, podeEstor
         abas={[
           { id: 'entradas', rotulo: 'Entradas', conta: m.entradas.length },
           { id: 'resultados', rotulo: 'Resultados', conta: m.lotes.filter((l) => l.status !== 'ESTORNADO').length },
+          ...(curva ? [{ id: 'leituras' as const, rotulo: 'Leituras', conta: curva.leituras.length }] : []),
           { id: 'composicao', rotulo: 'Composição por talhão' },
           { id: 'rastreabilidade', rotulo: 'Rastreabilidade' },
           { id: 'historico', rotulo: 'Histórico' },
@@ -111,6 +117,7 @@ export function DetalheMovimento({ m, disponiveis, opcoes, podeLancar, podeEstor
           <LotesGerados m={m} estoque={estoque} certificados={opcoes.certificados ?? []} podeLancar={podeLancar} pendente={pendente} rodar={rodar} />
         </>
       ) : null}
+      {aba === 'leituras' && curva ? <Leituras m={m} curva={curva} podeLer={podeLer && m.status === 'ABERTO'} pendente={pendente} rodar={rodar} /> : null}
       {aba === 'composicao' ? <Composicao m={m} /> : null}
       {aba === 'rastreabilidade' ? <Rastreio m={m} /> : null}
       {aba === 'historico' ? (
@@ -198,7 +205,8 @@ function FormResultados({ m, opcoes, pendente, aoLancar }: { m: Mov; opcoes: Rec
   }, [m.entradas]);
   const [fatores, setFatores] = useState<Record<string, string>>({});
   const [linhas, setLinhas] = useState<LinhaLote[]>([{ quantidade: '', peneiraId: '', tipoCafeId: '', localId: m.local?.id ?? '' }]);
-  const [umidade, setUmidade] = useState('');
+  // A umidade final é sugerida pela última leitura (§7).
+  const [umidade, setUmidade] = useState(m.ultimaUmidade ? m.ultimaUmidade.replace('.', ',') : '');
 
   // Prévia (o servidor recalcula e confere: RN-10, RN-12).
   let saidas: { rotulo: string; q: Decimal | null }[] = [];
@@ -377,6 +385,56 @@ function Rastreio({ m }: { m: Mov }) {
       <div className="sombra grid content-start gap-2 rounded-xl border border-linha bg-superficie p-4">
         <b>Para onde foi</b>
         {ativos.length ? ativos.map((l) => <Link key={l.id} className="font-mono text-destaque hover:underline" href={`/rastreabilidade/lote/${l.id}?direcao=baixo`}>{l.codigo} ↓</Link>) : <span className="text-tinta-2">Sem lotes gerados ainda.</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Leituras de umidade (§7): curva com a meta, previsão de ponto e lançamento pelo escritório. */
+function Leituras({ m, curva, podeLer, pendente, rodar }: { m: Mov; curva: Curva; podeLer: boolean; pendente: boolean; rodar: Rodar }) {
+  const agora = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date()).replace(' ', 'T');
+  const ultima = curva.leituras.at(-1);
+  const naMeta = ultima && curva.metaMin && curva.metaMax && new Decimal(ultima.umidade).gte(curva.metaMin) && new Decimal(ultima.umidade).lte(curva.metaMax);
+  return (
+    <div className="grid gap-3">
+      <div className="sombra grid gap-2 rounded-xl border border-linha bg-superficie p-4">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13.5px]">
+          <b className="font-display text-[17px]">Curva de umidade</b>
+          {curva.metaMin ? <span className="text-tinta-2">Meta {formatarNumero(curva.metaMin, 1)}–{formatarNumero(curva.metaMax!, 1)}%</span> : null}
+          {ultima ? <span>Última <b className="font-mono">{formatarNumero(ultima.umidade, 1)}%</b> em {dataHora(ultima.dataHora)}</span> : null}
+          {naMeta ? <span className="font-semibold text-ok">No ponto</span> : curva.previsao ? <span className="text-tinta-2">Ponto estimado em ~{formatarNumero(String(curva.previsao.horas), 1)} h ({dataHora(curva.previsao.em)})</span> : curva.leituras.length < 3 ? <span className="text-tinta-2">A previsão aparece com 3 leituras.</span> : null}
+        </div>
+        {curva.leituras.length ? <CurvaUmidade leituras={curva.leituras} metaMin={curva.metaMin} metaMax={curva.metaMax} /> : <p className="py-8 text-center text-tinta-2">Sem leituras ainda.</p>}
+      </div>
+      {podeLer ? (
+        <form className="sombra grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] items-end gap-3 rounded-xl border border-linha bg-superficie p-4" onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          const v = (k: string) => String(f.get(k) ?? '').trim();
+          const alvo = e.currentTarget;
+          rodar(() => acaoLancarLeitura(m.id, { dataHora: new Date(`${v('dataHora')}:00-03:00`).toISOString(), umidade: paraApi(v('umidade')), temperaturaMassa: v('massa') ? paraApi(v('massa')) : null, temperaturaAr: v('ar') ? paraApi(v('ar')) : null, observacao: v('obs') }), () => alvo.reset());
+        }}>
+          <Campo rotulo="Quando"><Entrada type="datetime-local" name="dataHora" defaultValue={agora()} required /></Campo>
+          <Campo rotulo="Umidade (%) *"><Entrada name="umidade" inputMode="decimal" required /></Campo>
+          <Campo rotulo="Temp. da massa (°C)"><Entrada name="massa" inputMode="decimal" /></Campo>
+          <Campo rotulo="Temp. do ar (°C)"><Entrada name="ar" inputMode="decimal" /></Campo>
+          <Campo rotulo="Observação"><Entrada name="obs" /></Campo>
+          <Botao type="submit" disabled={pendente}>Registrar leitura</Botao>
+        </form>
+      ) : null}
+      <div className="sombra overflow-x-auto rounded-xl border border-linha bg-superficie">
+        <table className="w-full min-w-[560px] border-collapse text-[13.5px]">
+          <thead><tr className="bg-superficie-2 text-left font-mono text-[11px] tracking-wider text-tinta-2 uppercase"><th className="px-3 py-3">Quando</th><th className="px-3 py-3 text-right">Umidade</th><th className="px-3 py-3 text-right">Massa</th><th className="px-3 py-3 text-right">Ar</th><th className="px-3 py-3">Observação</th></tr></thead>
+          <tbody>
+            {[...curva.leituras].reverse().map((l) => (
+              <tr key={l.id} className="border-t border-linha">
+                <td className="px-3 py-2.5">{dataHora(l.dataHora)}</td><td className="px-3 py-2.5 text-right font-mono">{formatarNumero(l.umidade, 1)}%</td>
+                <td className="px-3 py-2.5 text-right font-mono">{l.temperaturaMassa ? `${formatarNumero(l.temperaturaMassa, 1)} °C` : '—'}</td><td className="px-3 py-2.5 text-right font-mono">{l.temperaturaAr ? `${formatarNumero(l.temperaturaAr, 1)} °C` : '—'}</td>
+                <td className="px-3 py-2.5">{l.observacao ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

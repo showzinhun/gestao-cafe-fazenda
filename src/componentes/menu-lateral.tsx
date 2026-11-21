@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Boxes, ClipboardList, Droplets, FileCheck2, GitBranch, Home, Leaf, Map, Menu, Settings2, ShieldCheck, Ship, Smartphone, Sprout, Users, Wallet, X } from 'lucide-react';
+import { Bell, Boxes, ClipboardList, Droplets, FileCheck2, GitBranch, Home, Leaf, Map, Menu, Settings2, ShieldCheck, Ship, Smartphone, Sprout, Users, Wallet, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Logo } from './marca';
 
@@ -16,10 +16,10 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
     { href: '/colheita/colhedores', rotulo: 'Colhedores', icone: Users },
     { href: '/pagamentos', rotulo: 'Pagamentos', icone: Wallet },
     { href: '/etapas', rotulo: 'Etapas', icone: ClipboardList, tambem: ['/movimentos'] },
-    { href: '/secagem', rotulo: 'Secagem', icone: Droplets, fase: 5 },
+    { href: '/secagem', rotulo: 'Secagem', icone: Droplets },
     { href: '/estoque', rotulo: 'Estoque', icone: Boxes },
   ] },
-  { titulo: 'Consulta', itens: [{ href: '/rastreabilidade', rotulo: 'Rastreabilidade', icone: GitBranch }] },
+  { titulo: 'Consulta', itens: [{ href: '/rastreabilidade', rotulo: 'Rastreabilidade', icone: GitBranch }, { href: '/alertas', rotulo: 'Alertas', icone: Bell }] },
   { titulo: 'Comercial', itens: [
     { href: '/contratos', rotulo: 'Contratos', icone: FileCheck2, fase: 6 },
     { href: '/embarques', rotulo: 'Embarques', icone: Ship, fase: 6 },
@@ -34,7 +34,7 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
   ] },
 ];
 
-export function MenuLateral({ empresa, usuario, perfil, acaoSair, acaoTrocar }: { empresa: string; usuario: string; perfil: string; acaoSair: () => Promise<void>; acaoTrocar: () => Promise<void> }) {
+export function MenuLateral({ empresa, usuario, perfil, alertas = 0, acaoSair, acaoTrocar }: { empresa: string; usuario: string; perfil: string; alertas?: number; acaoSair: () => Promise<void>; acaoTrocar: () => Promise<void> }) {
   const caminho = usePathname();
   const [aberto, setAberto] = useState(false);
   const ini = usuario.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -89,6 +89,7 @@ export function MenuLateral({ empresa, usuario, perfil, acaoSair, acaoTrocar }: 
                   >
                     <i.icone className="size-[18px]" />
                     {i.rotulo}
+                    {i.href === '/alertas' && alertas > 0 ? <span className="ml-auto rounded-full bg-menu-ouro px-1.5 py-0.5 font-mono text-[11px] font-bold text-menu" aria-label={`${alertas} não lidos`}>{alertas}</span> : null}
                   </Link>
                 ),
               )}

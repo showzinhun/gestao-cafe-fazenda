@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { exigirContexto } from '@/lib/contexto';
 import { detalheMovimento, lotesParaEntrada } from '@/servicos/consultas';
 import { listarOpcoes } from '@/servicos/cadastros';
+import { curvaSecagem } from '@/servicos/secagem';
 import { ErroNaoEncontrado } from '@/dominio/erros';
 import { permissoesDoPerfil } from '@/dominio/permissoes';
 import { TituloPagina } from '@/componentes/titulo-pagina';
@@ -10,10 +11,10 @@ import { DetalheMovimento } from '@/componentes/operacao/detalhe-movimento';
 
 export const metadata: Metadata = { title: 'Movimento' };
 
-export default async function PaginaMovimento({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ avisos?: string }> }) {
+export default async function PaginaMovimento({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ avisos?: string; aba?: string }> }) {
   const ctx = await exigirContexto();
   const { id } = await params;
-  const { avisos } = await searchParams;
+  const { avisos, aba } = await searchParams;
   let m;
   try {
     m = await detalheMovimento(ctx, id);
@@ -26,6 +27,7 @@ export default async function PaginaMovimento({ params, searchParams }: { params
     m.status === 'ABERTO' && m.etapa.classe !== 'COLHEITA' ? lotesParaEntrada(ctx, m.etapa.id) : Promise.resolve([]),
     listarOpcoes(ctx, ['peneiras', 'tiposCafe', 'locais', 'certificados']),
   ]);
+  const curva = m.etapa.monitoraSecagem ? await curvaSecagem(ctx, m.id) : null;
   const titulo = m.etapa.classe === 'COLHEITA' ? `Carga nº ${m.numero}` : `${m.etapa.nome} ${m.etapa.prefixo}#${m.numero}`;
   return (
     <>
@@ -38,6 +40,9 @@ export default async function PaginaMovimento({ params, searchParams }: { params
           podeLancar={permissoes.includes('movimento.lancar')}
           podeEstornar={permissoes.includes('movimento.estornar')}
           avisos={avisos ? avisos.split(' | ') : []}
+          curva={curva}
+          abaInicial={aba}
+          podeLer={permissoes.includes('movimento.lancar') || permissoes.includes('apontamento.lancar')}
         />
       </div>
     </>

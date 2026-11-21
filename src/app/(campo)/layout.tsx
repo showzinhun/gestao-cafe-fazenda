@@ -26,7 +26,7 @@ export default async function LayoutCampo({ children }: { children: React.ReactN
         {[
           { href: '/campo', rotulo: 'Início', icone: Home },
           { href: '/campo/apontar', rotulo: 'Apontar', icone: Sprout },
-          { href: '/campo', rotulo: 'Secagem', icone: Droplets },
+          { href: '/campo/secagem', rotulo: 'Secagem', icone: Droplets },
         ].map((i) => (
           <Link key={i.rotulo} href={i.href} className="flex flex-col items-center gap-1 py-2.5 text-[12px] font-medium text-tinta-2">
             <i.icone className="size-5" />
