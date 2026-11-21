@@ -391,7 +391,7 @@ export async function definirAtivo(ctx: Contexto, recurso: Recurso, idRegistro: 
 }
 
 // ------------------------------------------------------------------ opções para as listas de escolha
-export type FonteOpcao = 'etapas' | 'fazendas' | 'safras' | 'talhoes' | 'transportadores' | 'produtores' | 'tiposCafe';
+export type FonteOpcao = 'etapas' | 'fazendas' | 'safras' | 'talhoes' | 'transportadores' | 'produtores' | 'tiposCafe' | 'peneiras' | 'certificados' | 'locais';
 
 /** Itens ativos para selects das telas (valor, rótulo e grupo para seleções dependentes). */
 export async function listarOpcoes(ctx: Contexto, fontes: readonly FonteOpcao[]) {
@@ -406,6 +406,9 @@ export async function listarOpcoes(ctx: Contexto, fontes: readonly FonteOpcao[])
         const papel = f === 'transportadores' ? 'TRANSPORTADOR' : 'PRODUTOR';
         r[f] = (await tx.parceiro.findMany({ where: { ativo: true, papeis: { has: papel } }, orderBy: { nome: 'asc' } })).map((e) => ({ valor: e.id, rotulo: e.cpfCnpj ? `${e.nome} · ${e.cpfCnpj}` : e.nome }));
       }
+      if (f === 'peneiras') r[f] = (await tx.peneira.findMany({ where: { ativo: true }, orderBy: [{ ordem: 'asc' }, { codigo: 'asc' }] })).map((e) => ({ valor: e.id, rotulo: e.codigo }));
+      if (f === 'certificados') r[f] = (await tx.certificado.findMany({ where: { ativo: true }, orderBy: { codigo: 'asc' } })).map((e) => ({ valor: e.id, rotulo: e.codigo }));
+      if (f === 'locais') r[f] = (await tx.local.findMany({ where: { ativo: true }, orderBy: { codigo: 'asc' } })).map((e) => ({ valor: e.id, rotulo: `${e.codigo} · ${e.nome}`, grupo: e.etapaId }));
       if (f === 'tiposCafe') r[f] = (await tx.tipoCafe.findMany({ where: { ativo: true }, orderBy: { codigo: 'asc' } })).map((e) => ({ valor: e.id, rotulo: `${e.codigo} · ${e.nome}` }));
     }
     return r as Record<FonteOpcao, { valor: string; rotulo: string; grupo?: string }[]>;

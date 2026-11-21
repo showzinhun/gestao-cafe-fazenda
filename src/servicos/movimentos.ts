@@ -9,7 +9,7 @@ import { auditar } from './auditoria';
 import { comTransacao, ehUuid, exigir, type Contexto, type Tx } from './transacao';
 import {
   certificadosAtivos, certificadosDeFazendas, codigoLivre, composicoes, dataLocal, dec, destinosDoLote, exigirFazendas, exigirMotivo, exigirTransicao,
-  exigirUnidade, fazendasPermitidas, gravarLote, mapasFazenda, normalizarDecimal, proximoNumero, quantidadeSchema, transicoesDe, travarLotes, travarMovimento,
+  baixarLocal, exigirUnidade, fazendasPermitidas, somarLocal, zerarLocais, gravarLote, mapasFazenda, normalizarDecimal, proximoNumero, quantidadeSchema, transicoesDe, travarLotes, travarMovimento,
 } from './rastreio-base';
 
 /**
@@ -107,7 +107,7 @@ async function conferirLocal(tx: Tx, etapa: { id: string; nome: string; exigeLoc
 
 // ================================================================ abrir movimento e entradas
 
-const entradaLoteSchema = z.object({ loteId: id, quantidade: quantidadeSchema, reservaId: idOpcional });
+const entradaLoteSchema = z.object({ loteId: id, quantidade: quantidadeSchema, reservaId: idOpcional, localId: idOpcional });
 const abrirSchema = z.object({
   etapaId: id,
   localId: idOpcional,
@@ -180,6 +180,7 @@ export async function removerEntrada(ctx: Contexto, movimentoId: string, loteId:
     const lote = await tx.lote.findFirstOrThrow({ where: { id: loteId } });
     exigirFazendas(await fazendasPermitidas(tx, ctx), await fazendasDoLote(tx, [lote]));
     await gravarLote(tx, ctx, lote, { utilizada: dec(lote.quantidadeUtilizada).minus(dec(e.quantidade)) });
+    if (e.localOrigemId) await somarLocal(tx, ctx.empresaId, loteId, e.localOrigemId, dec(e.quantidade));
     await tx.movimentoEntrada.update({ where: { id: e.id }, data: { cancelada: true, alteradoPor: ctx.usuarioId } });
     const atualizado = await recalcularMovimento(tx, ctx, mov.id);
     await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'RETIRAR_ENTRADA', antes: { lote: lote.codigo, quantidade: e.quantidade } });
@@ -243,18 +244,25 @@ async function aplicarEntradas(tx: Tx, ctx: Contexto, mov: Mov, etapa: Etapa, no
     await gravarLote(tx, ctx, l, { utilizada: dec(l.quantidadeUtilizada).plus(q), reservada: dec(l.quantidadeReservada).minus(daReserva) });
 
     const existente = await tx.movimentoEntrada.findUnique({ where: { movimentoId_loteId: { movimentoId: mov.id, loteId: l.id } } });
+    // Estoque: a entrada sai de um local (RN-25).
+    let localOrigemId: string | null = null;
+    if (l.etapa.classe === 'ESTOQUE') {
+      const anterior = existente && !existente.cancelada ? existente.localOrigemId : null;
+      if (anterior && n.localId && n.localId !== anterior) throw new ErroValidacao(`O lote ${l.codigo} já entrou neste movimento por outro local.`);
+      localOrigemId = await baixarLocal(tx, l, n.localId ?? anterior, q);
+    }
     const origemReserva = reserva?.finalidade ?? 'NENHUMA';
     if (existente)
       await tx.movimentoEntrada.update({
         where: { id: existente.id },
         data: {
-          quantidade: (existente.cancelada ? q : dec(existente.quantidade).plus(q)).toFixed(3), cancelada: false, alteradoPor: ctx.usuarioId,
+          quantidade: (existente.cancelada ? q : dec(existente.quantidade).plus(q)).toFixed(3), cancelada: false, localOrigemId, alteradoPor: ctx.usuarioId,
           ...(reserva ? { reservaId: reserva.id, origemReserva } : {}),
         },
       });
     else
       await tx.movimentoEntrada.create({
-        data: { empresaId: ctx.empresaId, movimentoId: mov.id, loteId: l.id, quantidade: q.toFixed(3), unidade: l.unidade, origemReserva, reservaId: reserva?.id ?? null, criadoPor: ctx.usuarioId },
+        data: { empresaId: ctx.empresaId, movimentoId: mov.id, loteId: l.id, quantidade: q.toFixed(3), unidade: l.unidade, origemReserva, reservaId: reserva?.id ?? null, localOrigemId, criadoPor: ctx.usuarioId },
       });
   }
 
@@ -305,11 +313,15 @@ async function recalcularMovimento(tx: Tx, ctx: Contexto, movimentoId: string) {
 
 // ================================================================ capacidade do local (RN-24)
 
-/** Ocupação = entradas dos movimentos abertos + saldo dos lotes gerados ali (processados). */
+/** Ocupação = entradas dos movimentos abertos + saldo dos lotes gerados ali; no estoque, o saldo por local (RN-25). */
 export async function ocupacaoDoLocal(tx: Tx, localId: string): Promise<Decimal> {
   const abertas = await tx.movimentoEntrada.aggregate({ _sum: { quantidade: true }, where: { cancelada: false, movimento: { localId, status: 'ABERTO' } } });
-  const lotes = await tx.lote.findMany({ where: { status: { not: 'ESTORNADO' }, movimento: { localId, status: { in: ['PROCESSADO', 'FINALIZADO'] } } }, select: { quantidade: true, quantidadeUtilizada: true } });
-  return lotes.reduce((s, l) => s.plus(dec(l.quantidade)).minus(dec(l.quantidadeUtilizada)), dec(abertas._sum.quantidade));
+  const lotes = await tx.lote.findMany({
+    where: { status: { not: 'ESTORNADO' }, etapa: { classe: { not: 'ESTOQUE' } }, movimento: { localId, status: { in: ['PROCESSADO', 'FINALIZADO'] } } },
+    select: { quantidade: true, quantidadeUtilizada: true },
+  });
+  const noEstoque = await tx.loteLocal.aggregate({ _sum: { quantidade: true }, where: { localId } });
+  return lotes.reduce((s, l) => s.plus(dec(l.quantidade)).minus(dec(l.quantidadeUtilizada)), dec(abertas._sum.quantidade).plus(dec(noEstoque._sum.quantidade)));
 }
 
 async function conferirCapacidade(tx: Tx, ctx: Contexto, mov: Mov): Promise<{ alertas: Alerta[]; ocupacao: { localId: string; percentual: string } | null }> {
@@ -336,7 +348,7 @@ const resultadoSchema = z.object({
   parametros: z.discriminatedUnion('modelo', [
     z.object({ modelo: z.literal('PERCENTUAL_POR_TIPO'), resultados: z.array(z.object({ tipoCafeId: id, percentual: decimalTexto })).min(1) }),
     z.object({ modelo: z.literal('CAFE_E_PERDA'), fator: decimalTexto.optional(), fatores: z.array(z.object({ tipoCafeId: id.nullable(), fator: decimalTexto })).optional() }),
-    z.object({ modelo: z.literal('CONVERSAO_ESTOQUE'), lotes: z.array(z.object({ quantidade: decimalTexto, tipoCafeId: idOpcional, peneiraId: idOpcional })).min(1) }),
+    z.object({ modelo: z.literal('CONVERSAO_ESTOQUE'), lotes: z.array(z.object({ quantidade: decimalTexto, tipoCafeId: idOpcional, peneiraId: idOpcional, localId: idOpcional })).min(1) }),
     z.object({ modelo: z.literal('POR_PENEIRA'), lotes: z.array(z.object({ quantidade: decimalTexto, peneiraId: id, tipoCafeId: idOpcional })).min(1) }),
   ]),
   umidadeFinal: decimalTexto.refine((v) => /^\d{1,2}(\.\d{1,2})?$/.test(v), 'Umidade entre 0 e 99,99%.').optional().nullable(),
@@ -355,6 +367,13 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
     if (mov.status !== 'ABERTO') throw new ErroValidacao('Só se lançam resultados num movimento aberto.');
     if (etapa.classe === 'SAIDA') throw new ErroValidacao('A saída não gera lotes: finalize o movimento.');
     if (d.certificadoIds && etapa.classe !== 'ESTOQUE') throw new ErroValidacao('Os certificados só são escolhidos na etapa de estoque (§10).');
+    // Estoque: cada lote gerado fica num local da etapa (RN-25). Padrão: o local do movimento.
+    const locaisDosLotes = d.parametros.modelo === 'CONVERSAO_ESTOQUE' ? d.parametros.lotes.map((l) => l.localId ?? mov.localId) : [];
+    if (etapa.classe === 'ESTOQUE') {
+      if (!locaisDosLotes.length || locaisDosLotes.some((x) => !x)) throw new ErroValidacao('Informe o local de cada lote do estoque.', 'localId');
+      const validos = await tx.local.count({ where: { id: { in: locaisDosLotes as string[] }, etapaId: etapa.id, ativo: true } });
+      if (validos !== new Set(locaisDosLotes).size) throw new ErroValidacao(`Local que não é de ${etapa.nome}.`, 'localId');
+    }
 
     const es = await tx.movimentoEntrada.findMany({ where: { movimentoId, cancelada: false }, include: { lote: true } });
     if (!es.length) throw new ErroValidacao('O movimento não tem entradas.');
@@ -388,7 +407,7 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
     const nomeCert = new Map((await tx.certificado.findMany()).map((c) => [c.id, c.codigo]));
 
     const gerados = [];
-    for (const s of calc.saidas) {
+    for (const [i, s] of calc.saidas.entries()) {
       const fontes = s.fontes.map((f) => porEntrada.get(f)!);
       const composicao: Composicao = comporTalhoes(fontes.map((f) => ({ quantidade: dec(f.quantidade), composicao: comp.get(f.loteId)! })));
       const fazendas = [...new Set([...composicao.keys()].map((t) => mapas.doTalhao.get(t)!))];
@@ -413,13 +432,14 @@ export async function lancarResultados(ctx: Contexto, movimentoId: string, entra
         data: {
           empresaId: ctx.empresaId, codigo, movimentoId: mov.id, etapaId: etapa.id, fazendaId, safraId: mov.safraId, tipoCafeId, peneiraId: s.peneiraId,
           unidade: etapa.unidadeSaida, quantidade: s.quantidade.toFixed(3), percentual: s.percentual?.toFixed(6) ?? null,
-          umidade: d.umidadeFinal ?? null, origemTipo: 'PROCESSO', data: agora, criadoPor: ctx.usuarioId,
+          umidade: d.umidadeFinal ?? null, origemTipo: 'PROCESSO', fontes: s.fontes, data: agora, criadoPor: ctx.usuarioId,
         },
       });
       await tx.loteTalhao.createMany({
         data: equivalentes(composicao, s.quantidade).map((x) => ({ empresaId: ctx.empresaId, loteId: lote.id, talhaoId: x.talhaoId, percentual: x.percentual.toFixed(10), quantidadeEquivalente: x.quantidade.toFixed(3) })),
       });
       if (certs.length) await tx.loteCertificado.createMany({ data: certs.map((c) => ({ empresaId: ctx.empresaId, loteId: lote.id, certificadoId: c })) });
+      if (etapa.classe === 'ESTOQUE') await somarLocal(tx, ctx.empresaId, lote.id, locaisDosLotes[i]!, s.quantidade);
       gerados.push(lote);
     }
 
@@ -459,10 +479,14 @@ export async function apagarResultados(ctx: Contexto, movimentoId: string, motiv
   const m = exigirMotivo(motivo);
   return comTransacao(ctx, async (tx) => {
     const mov = await travarMovimento(tx, movimentoId);
+    if (mov.natureza !== 'NORMAL') throw new ErroValidacao('Ajuste de inventário não se altera.');
     if (mov.etapa.classe === 'COLHEITA') throw new ErroValidacao('A carga de colheita não tem resultados a apagar: estorne a carga.');
     if (mov.status !== 'PROCESSADO') throw new ErroValidacao('Só se apagam resultados de um movimento processado.');
     const lotes = await exigirLotesSemUso(tx, mov.id, 'RN-06');
-    for (const l of lotes) await gravarLote(tx, ctx, l, { estornado: true });
+    for (const l of lotes) {
+      await gravarLote(tx, ctx, l, { estornado: true });
+      await zerarLocais(tx, l.id);
+    }
     const atualizado = await tx.movimento.update({
       where: { id: mov.id },
       data: { status: 'ABERTO', dataResultado: null, qtdSaida: null, qtdPerda: null, percQuebra: null, rendimento: null, umidadeFinal: null, alteradoPor: ctx.usuarioId },
@@ -482,6 +506,7 @@ export async function estornarMovimento(ctx: Contexto, movimentoId: string, moti
   return comTransacao(ctx, async (tx) => {
     const mov = await travarMovimento(tx, movimentoId);
     if (mov.status === 'ESTORNADO') throw new ErroValidacao('O movimento já está estornado.');
+    if (mov.natureza !== 'NORMAL') throw new ErroValidacao('Ajuste de inventário não se estorna: faça um novo inventário.');
     if (mov.status === 'FINALIZADO') throw new ErroRegra('RN-14', 'Saída finalizada não se estorna. Só o administrador pode reabrir, com motivo.');
     const lotes = await exigirLotesSemUso(tx, mov.id, 'RN-05');
     const es = await tx.movimentoEntrada.findMany({ where: { movimentoId, cancelada: false }, include: { lote: true } });
@@ -489,10 +514,14 @@ export async function estornarMovimento(ctx: Contexto, movimentoId: string, moti
     const reservas = await tx.reserva.findMany({ where: { movimentoId, status: 'ATIVA' } });
     await travarLotes(tx, [...es.map((e) => e.loteId), ...reservas.map((r) => r.loteId)]);
 
-    for (const l of lotes) await gravarLote(tx, ctx, l, { estornado: true });
+    for (const l of lotes) {
+      await gravarLote(tx, ctx, l, { estornado: true });
+      await zerarLocais(tx, l.id);
+    }
     for (const e of es) {
       const origem = await tx.lote.findFirstOrThrow({ where: { id: e.loteId } });
       await gravarLote(tx, ctx, origem, { utilizada: dec(origem.quantidadeUtilizada).minus(dec(e.quantidade)) });
+      if (e.localOrigemId) await somarLocal(tx, ctx.empresaId, e.loteId, e.localOrigemId, dec(e.quantidade));
     }
     for (const r of reservas) {
       const l = await tx.lote.findFirstOrThrow({ where: { id: r.loteId } });
@@ -562,4 +591,12 @@ export async function obterMovimento(ctx: Contexto, movimentoId: string) {
     if (!mov) throw new ErroNaoEncontrado('Movimento não encontrado.');
     return mov;
   });
+}
+
+/** DELETE /api/movimentos/{id}/entradas/{entradaId} (§14). */
+export async function removerEntradaPorId(ctx: Contexto, movimentoId: string, entradaId: string) {
+  if (!ehUuid(movimentoId) || !ehUuid(entradaId)) throw new ErroNaoEncontrado('Entrada não encontrada.');
+  const e = await comTransacao(ctx, (tx) => tx.movimentoEntrada.findFirst({ where: { id: entradaId, movimentoId, cancelada: false }, select: { loteId: true } }));
+  if (!e) throw new ErroNaoEncontrado('Entrada não encontrada.');
+  return removerEntrada(ctx, movimentoId, e.loteId);
 }

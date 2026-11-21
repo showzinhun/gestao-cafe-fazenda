@@ -2,21 +2,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Boxes, ClipboardList, Droplets, FileCheck2, Home, Leaf, Map, Menu, Settings2, ShieldCheck, Ship, Smartphone, Sprout, Users, X } from 'lucide-react';
+import { Boxes, ClipboardList, Droplets, FileCheck2, GitBranch, Home, Leaf, Map, Menu, Settings2, ShieldCheck, Ship, Smartphone, Sprout, Users, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Logo } from './marca';
 
-type Item = { href: string; rotulo: string; icone: React.ComponentType<{ className?: string }>; fase?: number };
+type Item = { href: string; rotulo: string; icone: React.ComponentType<{ className?: string }>; fase?: number; tambem?: string[] };
 
 /** Menu agrupado (§12). Itens com "fase" ainda não existem e aparecem desativados. */
 const GRUPOS: { titulo: string; itens: Item[] }[] = [
   { titulo: 'Operação', itens: [
     { href: '/inicio', rotulo: 'Início', icone: Home },
-    { href: '/colheita', rotulo: 'Colheita', icone: Sprout, fase: 3 },
-    { href: '/etapas', rotulo: 'Etapas', icone: ClipboardList, fase: 3 },
+    { href: '/colheita', rotulo: 'Colheita', icone: Sprout },
+    { href: '/etapas', rotulo: 'Etapas', icone: ClipboardList, tambem: ['/movimentos'] },
     { href: '/secagem', rotulo: 'Secagem', icone: Droplets, fase: 5 },
-    { href: '/estoque', rotulo: 'Estoque', icone: Boxes, fase: 3 },
+    { href: '/estoque', rotulo: 'Estoque', icone: Boxes },
   ] },
+  { titulo: 'Consulta', itens: [{ href: '/rastreabilidade', rotulo: 'Rastreabilidade', icone: GitBranch }] },
   { titulo: 'Comercial', itens: [
     { href: '/contratos', rotulo: 'Contratos', icone: FileCheck2, fase: 6 },
     { href: '/embarques', rotulo: 'Embarques', icone: Ship, fase: 6 },
@@ -35,7 +36,7 @@ export function MenuLateral({ empresa, usuario, perfil, acaoSair, acaoTrocar }: 
   const caminho = usePathname();
   const [aberto, setAberto] = useState(false);
   const ini = usuario.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-  const ativo = (href: string) => caminho === href || (href !== '/inicio' && href !== '/cadastros' && caminho.startsWith(href + '/')) || (href === '/cadastros' && caminho.startsWith('/cadastros/') && !caminho.startsWith('/cadastros/fazendas'));
+  const ativo = (href: string) => GRUPOS.some((g) => g.itens.some((i) => i.href === href && i.tambem?.some((p) => caminho.startsWith(p)))) || caminho === href || (href !== '/inicio' && href !== '/cadastros' && caminho.startsWith(href + '/')) || (href === '/cadastros' && caminho.startsWith('/cadastros/') && !caminho.startsWith('/cadastros/fazendas'));
   return (
     <aside className={cn('z-40 bg-menu text-menu-tinta', 'max-lg:sticky max-lg:top-0', 'lg:fixed lg:inset-y-0 lg:left-0 lg:w-63 lg:overflow-y-auto')}>
       <div className="flex min-h-full flex-col gap-1 px-3 py-3 lg:py-4">
