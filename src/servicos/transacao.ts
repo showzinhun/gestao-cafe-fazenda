@@ -1,7 +1,9 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ErroNaoEncontrado } from '@/dominio/erros';
-import type { Perfil } from '@/dominio/perfis';
+import type { Perfil, Permissao } from '@/dominio/perfis';
+import { ErroPermissao } from '@/dominio/erros';
+import { permissoesDoPerfil } from '@/dominio/permissoes';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -12,6 +14,14 @@ export interface Contexto {
   perfil: Perfil;
   ip?: string | null;
   dispositivoId?: string | null;
+  /** Matriz efetiva da empresa; sem ela vale o padrão do domínio. */
+  permissoes?: readonly Permissao[];
+}
+
+/** Confere a permissão no servidor (§3.2). A interface só esconde ou desativa. */
+export function exigir(ctx: Contexto, permissao: Permissao): void {
+  const lista = ctx.permissoes ?? permissoesDoPerfil(ctx.perfil);
+  if (!lista.includes(permissao)) throw new ErroPermissao();
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -1,5 +1,6 @@
 import { comTransacao, comUsuario, ehUuid, type Contexto } from './transacao';
-import type { Perfil } from '@/dominio/perfis';
+import type { Perfil, Permissao } from '@/dominio/perfis';
+import { permissoesDoPerfil, type AjustesPermissao } from '@/dominio/permissoes';
 import { ErroNaoEncontrado } from '@/dominio/erros';
 
 export interface EmpresaDoUsuario {
@@ -39,4 +40,16 @@ export async function resumoEmpresa(ctx: Contexto) {
     if (!empresa) throw new ErroNaoEncontrado();
     return { ...empresa, fazendas, usuarios };
   });
+}
+
+/** Ajustes da matriz perfil × permissão gravados pela empresa (§3.2). */
+export async function ajustesPermissao(ctx: Pick<Contexto, 'empresaId' | 'usuarioId' | 'perfil'>): Promise<AjustesPermissao> {
+  const linhas = await comTransacao(ctx as Contexto, (tx) => tx.perfilPermissao.findMany());
+  const a: AjustesPermissao = {};
+  for (const l of linhas) (a[l.perfil] ??= {})[l.permissao as Permissao] = l.permitido;
+  return a;
+}
+
+export async function permissoesEfetivas(ctx: Pick<Contexto, 'empresaId' | 'usuarioId' | 'perfil'>): Promise<Permissao[]> {
+  return permissoesDoPerfil(ctx.perfil, await ajustesPermissao(ctx));
 }
