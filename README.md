@@ -44,6 +44,21 @@ Depois, o administrador ajusta o fluxo em **Configuração → Fluxo de etapas**
 
 O mapa usa MapLibre com o fundo do OpenStreetMap. O worker do MapLibre é copiado para `public/vendor` no `npm install` e antes do `dev`/`build`.
 
+## Núcleo de rastreabilidade (Fase 2)
+
+Sem telas ainda. Os casos de uso ficam em `src/servicos` e as regras puras em `src/dominio`:
+
+| Serviço | O que faz |
+|---|---|
+| `registrarCarga` | carga de colheita → movimento COLHEITA processado com 1 lote (100% do talhão) |
+| `abrirMovimento`, `adicionarEntradas`, `removerEntrada` | entradas com saldo, reservas, transição, safra, unidade, acesso por fazenda e capacidade |
+| `lancarResultados`, `apagarResultados` | lotes gerados conforme o modelo da etapa (percentual por tipo, café e perda, conversão para kg, por peneira) |
+| `estornarMovimento`, `finalizarSaida`, `reabrirSaida` | estorno LIFO e saída imutável |
+| `criarReserva`, `cancelarReserva` | reservas por finalidade (RN-07) |
+| `obterLote`, `alterarLote`, `definirCertificadosLote` | consulta com composição e certificados; ajustes permitidos |
+
+Toda operação que mexe em quantidade roda numa transação com `SELECT … FOR UPDATE` nos lotes. Há um teste de concorrência em `tests/integracao/rastreabilidade.test.ts`.
+
 ## Testes
 
 ```bash
