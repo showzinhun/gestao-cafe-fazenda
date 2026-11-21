@@ -6,6 +6,8 @@ const config: NextConfig = {
   typedRoutes: false,
   // O PDF dos recibos é montado no servidor (§6.3).
   serverExternalPackages: ['@react-pdf/renderer'],
+  // Evidências e certificados em PDF chegam por server action (até 5 MB, §10).
+  experimental: { serverActions: { bodySizeLimit: '6mb' } },
   async headers() {
     return [
       {

@@ -56,7 +56,7 @@ export function pendenciasDoTalhao(t: TalhaoEudr): Pendencia[] {
       ? { tipo: 'CHECAGEM_DESATUALIZADA', referencia: nome(t), mensagem: `Talhão ${nome(t)}: a geometria mudou depois da última checagem. Refaça a checagem.` }
       : { tipo: 'SEM_CHECAGEM', referencia: nome(t), mensagem: `Talhão ${nome(t)} sem checagem de desmatamento.` }];
   }
-  if (c.resultado === 'ALERTA') return [{ tipo: 'CHECAGEM_ALERTA', referencia: nome(t), mensagem: `Talhão ${nome(t)} com alerta de desmatamento (checagem de ${c.dataChecagem}).` }];
+  if (c.resultado === 'ALERTA') return [{ tipo: 'CHECAGEM_ALERTA', referencia: nome(t), mensagem: `Talhão ${nome(t)} com alerta de desmatamento (checagem de ${c.dataChecagem.split('-').reverse().join('/')}).` }];
   if (c.resultado !== 'SEM_ALERTA') return [{ tipo: 'CHECAGEM_INCONCLUSIVA', referencia: nome(t), mensagem: `Talhão ${nome(t)}: checagem ${c.resultado === 'ERRO' ? 'com erro' : 'inconclusiva'}. Refaça ou importe o resultado.` }];
   return [];
 }

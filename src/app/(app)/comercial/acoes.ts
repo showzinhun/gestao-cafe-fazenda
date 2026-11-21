@@ -6,6 +6,7 @@ import { ErroNaoEncontrado } from '@/dominio/erros';
 import { assinarContrato, cancelarContrato, cancelarFixacao, criarContrato, registrarAmostra, registrarFixacao, reservarParaContrato, retornoAmostra } from '@/servicos/contratos';
 import { adicionarNota, alterarLogistica, cancelarNota, criarEmbarque, desfazerProgramacao, finalizarEmbarque, programarEmbarque, reabrirEmbarque, registrarCarregamento } from '@/servicos/embarques';
 import { cancelarReserva } from '@/servicos/reservas';
+import { gerarDossie, reemitirPacote } from '@/servicos/dossie';
 
 /** Ações do comercial (Fase 6): finas, só chamam os serviços (regra 2). */
 
@@ -52,3 +53,5 @@ export const acaoCancelarNota = async (id: string, notaId: string) => executar('
 export const acaoLogistica = async (id: string, d: Arg<typeof alterarLogistica>[1]) => executar('Dados de logística salvos.', async () => alterarLogistica(await ctx(), id, d));
 export const acaoFinalizarEmbarque = async (id: string) => executar('Embarque finalizado.', async () => (await finalizarEmbarque(await ctx(), id)).statusContrato);
 export const acaoReabrirEmbarque = async (id: string, motivo: string) => executar('Embarque reaberto.', async () => void (await reabrirEmbarque(await ctx(), id, motivo)));
+export const acaoGerarDossie = async (id: string) => executar('Dossiê gerado.', async () => (await gerarDossie(await ctx(), id)).pendencias.length);
+export const acaoReemitirPacote = async (id: string, motivo: string) => executar('Pacote reemitido em nova versão.', async () => (await reemitirPacote(await ctx(), id, motivo)).versao);
