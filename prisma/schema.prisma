@@ -685,6 +685,8 @@ model Movimento {
 
   carga CargaColheita?
 
+  leituras LeituraSecagem[]
+
   @@unique([empresaId, etapaId, numero])
   @@unique([empresaId, id])
   @@index([empresaId, localId, status])
@@ -1182,4 +1184,66 @@ model LancamentoColhedor {
 
   @@index([empresaId, colhedorId])
   @@map("lancamento_colhedor")
+}
+
+// ---------------------------------------------------------------- Fase 5: secagem e alertas (§4.6, §7)
+
+/// Leitura de umidade/temperatura de um movimento em secagem. O id é o UUID gerado no aparelho (RN-23).
+model LeituraSecagem {
+  id               String   @id @db.Uuid
+  empresaId        String   @map("empresa_id") @db.Uuid
+  movimentoId      String   @map("movimento_id") @db.Uuid
+  dataHora         DateTime @map("data_hora") @db.Timestamptz(6)
+  umidade          Decimal  @db.Decimal(5, 2)
+  temperaturaMassa Decimal? @map("temperatura_massa") @db.Decimal(5, 1)
+  temperaturaAr    Decimal? @map("temperatura_ar") @db.Decimal(5, 1)
+  observacao       String?
+  usuarioId        String?  @map("usuario_id") @db.Uuid
+  dispositivoId    String?  @map("dispositivo_id")
+  cancelada        Boolean  @default(false)
+  criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  movimento Movimento @relation(fields: [empresaId, movimentoId], references: [empresaId, id])
+
+  @@index([empresaId, movimentoId, dataHora])
+  @@map("leitura_secagem")
+}
+
+enum TipoAlerta {
+  PONTO_SECAGEM
+  SECAGEM_LONGA
+  CAPACIDADE
+  CERTIFICADO_VENCENDO
+  CONTRATO_PRAZO
+  EUDR_PENDENTE
+  DIVERGENCIA_CARGA
+
+  @@map("tipo_alerta")
+}
+
+enum SeveridadeAlerta {
+  INFO
+  AVISO
+  CRITICO
+
+  @@map("severidade_alerta")
+}
+
+/// Central de alertas (§4.6). "chave" evita repetir o mesmo alerta (ex.: PONTO_SECAGEM:<movimento>).
+model Alerta {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId  String           @map("empresa_id") @db.Uuid
+  tipo       TipoAlerta
+  chave      String
+  entidade   String
+  entidadeId String           @map("entidade_id") @db.Uuid
+  mensagem   String
+  severidade SeveridadeAlerta @default(AVISO)
+  criadoEm   DateTime         @default(now()) @map("criado_em") @db.Timestamptz(6)
+  lidoPor    String?          @map("lido_por") @db.Uuid
+  lidoEm     DateTime?        @map("lido_em") @db.Timestamptz(6)
+
+  @@unique([empresaId, chave])
+  @@index([empresaId, lidoEm])
+  @@map("alerta")
 }
