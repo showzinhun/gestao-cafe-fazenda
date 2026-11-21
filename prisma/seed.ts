@@ -60,7 +60,7 @@ async function main() {
   const ns = SEED.fazendas[0].id;
   const locais = [
     ['TERREIRO', 'TE-01', 'Terreiro 1', '120', 'MEDIDA', ns],
-    ['SECADOR', 'SE-01', 'Secador 1', '60', 'MEDIDA', ns],
+    ['SECADOR', 'SE-01', 'Secador 1', '150', 'MEDIDA', ns],
     ['TULHA', 'TU-01', 'Tulha 1', '200', 'MEDIDA', ns],
     ['ARMAZEM', 'Q-01', 'Quadra 1', '30000', 'KG', null],
     ['ARMAZEM', 'Q-02', 'Quadra 2', '30000', 'KG', null],
@@ -75,6 +75,13 @@ async function main() {
   const safraAlfa = (await db.safra.findUnique({ where: { empresaId_codigo: { empresaId: alfa, codigo: SEED.safra.codigo } } }))!.id;
   if (!(await db.tabelaPrecoColheita.findFirst({ where: { empresaId: alfa, fazendaId: ns } }))) {
     await db.tabelaPrecoColheita.create({ data: { empresaId: alfa, fazendaId: ns, safraId: safraAlfa, tipoColheita: 'MANUAL', valorPorMedida: '12.00', vigenciaInicio: new Date(SEED.safra.dataInicio) } });
+  }
+  // §15: RFA válido para NS; AAA inexistente.
+  const rfa = await db.certificado.findFirstOrThrow({ where: { empresaId: alfa, codigo: 'RFA' } });
+  if (!(await db.fazendaCertificado.findFirst({ where: { empresaId: alfa, fazendaId: ns, certificadoId: rfa.id } }))) {
+    await db.fazendaCertificado.create({
+      data: { empresaId: alfa, fazendaId: ns, certificadoId: rfa.id, numero: 'RFA-FICTICIO-NS', validadeInicio: new Date('2025-01-01'), validadeFim: new Date('2027-12-31') },
+    });
   }
   if (!(await db.motorista.findFirst({ where: { empresaId: alfa } }))) {
     await db.motorista.create({ data: { empresaId: alfa, nome: 'Pedro Motorista (fictício)', cpf: '246.813.579-28', placaPadrao: 'ABC1D23', transportadorId: SEED.parceiros[2].id } });
