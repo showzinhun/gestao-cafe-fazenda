@@ -146,7 +146,7 @@ export interface CartaoSecagem {
   motivos: string[];
   movimentos: {
     id: string; rotulo: string; volume: string; unidade: string; dias: number; entrada: string;
-    ultimaUmidade: string | null; ultimaLeitura: string | null; tendencia: string | null; previsaoHoras: number | null; metaMin: string | null; metaMax: string | null; situacao: SituacaoSecagem;
+    ultimaUmidade: string | null; ultimaLeitura: string | null; tendencia: string | null; previsaoHoras: number | null; metaMin: string | null; metaMax: string | null; situacao: SituacaoSecagem; motivos: string[];
   }[];
 }
 
@@ -188,12 +188,12 @@ export async function painelSecagem(ctx: Contexto) {
       const pior = doLocal.sort((a, b) => prioridade[b.situacao] - prioridade[a.situacao])[0];
       cartoes.push({
         localId: l.id, local: `${l.codigo} · ${l.nome}`, etapa: etapa.nome, capacidade: l.capacidade?.toString() ?? null, unidadeCapacidade: l.unidadeCapacidade, ocupacao,
-        situacao: pior?.situacao ?? 'LIVRE', motivos: pior?.motivos ?? [], movimentos: doLocal.map(({ motivos: _m, ...x }) => x),
+        situacao: pior?.situacao ?? 'LIVRE', motivos: pior?.motivos ?? [], movimentos: doLocal,
       });
     }
     const semLocal = await Promise.all(movs.filter((m) => !m.localId).map(descrever));
     for (const m of semLocal)
-      cartoes.push({ localId: null, local: 'Sem local', etapa: movs.find((x) => x.id === m.id)!.etapa.nome, capacidade: null, unidadeCapacidade: null, ocupacao: null, situacao: m.situacao, motivos: m.motivos, movimentos: [(({ motivos: _m, ...x }) => x)(m)] });
+      cartoes.push({ localId: null, local: 'Sem local', etapa: movs.find((x) => x.id === m.id)!.etapa.nome, capacidade: null, unidadeCapacidade: null, ocupacao: null, situacao: m.situacao, motivos: m.motivos, movimentos: [m] });
     const resumo = { LIVRE: 0, SECANDO: 0, NO_PONTO: 0, ATENCAO: 0 } as Record<SituacaoSecagem, number>;
     for (const c of cartoes) resumo[c.situacao]++;
     return { cartoes, resumo, limites: cfg };
