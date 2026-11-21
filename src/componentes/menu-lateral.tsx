@@ -24,9 +24,9 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
   ] },
   { titulo: 'Configuração', itens: [
     { href: '/cadastros/fazendas', rotulo: 'Fazendas', icone: Map },
-    { href: '/cadastros', rotulo: 'Cadastros', icone: Leaf, fase: 1 },
-    { href: '/usuarios', rotulo: 'Usuários', icone: Users, fase: 1 },
-    { href: '/fluxo', rotulo: 'Fluxo', icone: Settings2, fase: 1 },
+    { href: '/cadastros', rotulo: 'Cadastros', icone: Leaf },
+    { href: '/config/fluxo', rotulo: 'Fluxo de etapas', icone: Settings2 },
+    { href: '/config/usuarios', rotulo: 'Usuários e acessos', icone: Users },
     { href: '/campo', rotulo: 'App de campo', icone: Smartphone },
   ] },
 ];
@@ -35,7 +35,7 @@ export function MenuLateral({ empresa, usuario, perfil, acaoSair, acaoTrocar }: 
   const caminho = usePathname();
   const [aberto, setAberto] = useState(false);
   const ini = usuario.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-  const ativo = (href: string) => caminho === href || (href !== '/inicio' && caminho.startsWith(href + '/'));
+  const ativo = (href: string) => caminho === href || (href !== '/inicio' && href !== '/cadastros' && caminho.startsWith(href + '/')) || (href === '/cadastros' && caminho.startsWith('/cadastros/') && !caminho.startsWith('/cadastros/fazendas'));
   return (
     <aside className={cn('z-40 bg-menu text-menu-tinta', 'max-lg:sticky max-lg:top-0', 'lg:fixed lg:inset-y-0 lg:left-0 lg:w-63 lg:overflow-y-auto')}>
       <div className="flex min-h-full flex-col gap-1 px-3 py-3 lg:py-4">

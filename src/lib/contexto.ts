@@ -2,7 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { vinculoAtivo } from '@/servicos/acesso';
+import { permissoesEfetivas, vinculoAtivo } from '@/servicos/acesso';
 import type { Contexto } from '@/servicos/transacao';
 import { ErroNaoEncontrado } from '@/dominio/erros';
 
@@ -16,7 +16,8 @@ export async function contextoDaSessao(): Promise<Contexto | null> {
   try {
     const v = await vinculoAtivo(s.usuarioId, s.empresaId);
     const h = await headers();
-    return { empresaId: v.empresaId, usuarioId: s.usuarioId, perfil: v.perfil, ip: h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null };
+    const base = { empresaId: v.empresaId, usuarioId: s.usuarioId, perfil: v.perfil };
+    return { ...base, permissoes: await permissoesEfetivas(base), ip: h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null };
   } catch (e) {
     if (e instanceof ErroNaoEncontrado) return null;
     throw e;

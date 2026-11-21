@@ -35,7 +35,7 @@ test('RN-22 usuário com duas empresas só vê os dados da empresa ativa', async
   // Fazenda da outra empresa, por id direto na URL e pela API: 404 (nunca 403).
   await page.goto(`/cadastros/fazendas/${serraLeste.id}`);
   await expect(page.getByRole('heading', { name: 'Não encontrado' })).toBeVisible();
-  const api = await page.request.get(`/api/fazendas/${serraLeste.id}`);
+  const api = await page.request.get(`/api/cadastros/fazendas/${serraLeste.id}`);
   expect(api.status()).toBe(404);
 
   // Trocar de empresa pelo menu.

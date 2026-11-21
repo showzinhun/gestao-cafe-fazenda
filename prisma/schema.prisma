@@ -78,22 +78,31 @@ model UsuarioEmpresa {
   @@map("usuario_empresa")
 }
 
-/// Fazenda mínima da Fase 0; os demais campos do §4.2 entram na Fase 1.
+/// Fazenda (§4.2). O código (2–4 letras) entra no código de lote (§8).
 model Fazenda {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   empresaId   String   @map("empresa_id") @db.Uuid
   codigo      String
   nome        String
+  produtorId  String?  @map("produtor_id") @db.Uuid
   municipio   String?
   uf          String?  @db.Char(2)
+  pais        String   @default("BR") @db.Char(2)
+  car         String?
+  ie          String?
   ativo       Boolean  @default(true)
   criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
   criadoPor   String?  @map("criado_por") @db.Uuid
   alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
   alteradoPor String?  @map("alterado_por") @db.Uuid
 
-  empresa  Empresa          @relation(fields: [empresaId], references: [id])
-  usuarios UsuarioFazenda[]
+  empresa    Empresa               @relation(fields: [empresaId], references: [id])
+  produtor   Parceiro?             @relation(fields: [empresaId, produtorId], references: [empresaId, id])
+  usuarios   UsuarioFazenda[]
+  talhoes    Talhao[]
+  locais     Local[]
+  transicoes FluxoTransicao[]
+  precos     TabelaPrecoColheita[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
@@ -130,4 +139,344 @@ model Auditoria {
 
   @@index([empresaId, entidade, entidadeId])
   @@map("auditoria")
+}
+
+// ---------------------------------------------------------------- Fase 1: cadastros (§4.2)
+
+enum TipoPessoa {
+  F
+  J
+
+  @@map("tipo_pessoa")
+}
+
+/// Parceiro (§4.2): produtor, cliente, operador ou transportador. Papéis em array.
+model Parceiro {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String     @map("empresa_id") @db.Uuid
+  tipoPessoa  TipoPessoa @map("tipo_pessoa")
+  nome        String
+  razaoSocial String?    @map("razao_social")
+  cpfCnpj     String?    @map("cpf_cnpj")
+  pais        String     @default("BR") @db.Char(2)
+  papeis      String[]
+  codigoErp   String?    @map("codigo_erp")
+  ativo       Boolean    @default(true)
+  criadoEm    DateTime   @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?    @map("criado_por") @db.Uuid
+  alteradoEm  DateTime   @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?    @map("alterado_por") @db.Uuid
+
+  fazendas   Fazenda[]
+  motoristas Motorista[]
+
+  @@unique([empresaId, id])
+  @@index([empresaId, cpfCnpj])
+  @@map("parceiro")
+}
+
+enum GeometriaTipo {
+  PONTO
+  POLIGONO
+
+  @@map("geometria_tipo")
+}
+
+/// Talhão (§4.2) com geometria GeoJSON (WGS84, 6 casas) e área calculada.
+model Talhao {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId       String         @map("empresa_id") @db.Uuid
+  fazendaId       String         @map("fazenda_id") @db.Uuid
+  codigo          String
+  nome            String
+  areaHaInformada Decimal?       @map("area_ha_informada") @db.Decimal(14, 4)
+  areaHaCalculada Decimal?       @map("area_ha_calculada") @db.Decimal(14, 4)
+  variedade       String?
+  anoPlantio      Int?           @map("ano_plantio")
+  geometria       Json?
+  geometriaTipo   GeometriaTipo? @map("geometria_tipo")
+  ativo           Boolean        @default(true)
+  criadoEm        DateTime       @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor       String?        @map("criado_por") @db.Uuid
+  alteradoEm      DateTime       @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor     String?        @map("alterado_por") @db.Uuid
+
+  fazenda Fazenda               @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  precos  TabelaPrecoColheita[]
+
+  @@unique([fazendaId, codigo])
+  @@unique([empresaId, id])
+  @@map("talhao")
+}
+
+model Safra {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  codigo      String
+  dataInicio  DateTime @map("data_inicio") @db.Date
+  dataFim     DateTime @map("data_fim") @db.Date
+  ativa       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  precos TabelaPrecoColheita[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
+  @@map("safra")
+}
+
+model TipoCafe {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  codigo      String
+  nome        String
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  resultados EtapaTipoResultado[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, id])
+  @@map("tipo_cafe")
+}
+
+model Peneira {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  codigo      String
+  descricao   String
+  ordem       Int      @default(0)
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  @@unique([empresaId, codigo])
+  @@map("peneira")
+}
+
+enum UnidadeCapacidade {
+  M2
+  MEDIDA
+  KG
+  SACA
+
+  @@map("unidade_capacidade")
+}
+
+/// Local físico de uma etapa (terreiro, secador, tulha, quadra do armazém).
+model Local {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId         String             @map("empresa_id") @db.Uuid
+  fazendaId         String?            @map("fazenda_id") @db.Uuid
+  etapaId           String             @map("etapa_id") @db.Uuid
+  codigo            String
+  nome              String
+  capacidade        Decimal?           @db.Decimal(14, 3)
+  unidadeCapacidade UnidadeCapacidade? @map("unidade_capacidade")
+  ativo             Boolean            @default(true)
+  criadoEm          DateTime           @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor         String?            @map("criado_por") @db.Uuid
+  alteradoEm        DateTime           @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor       String?            @map("alterado_por") @db.Uuid
+
+  fazenda Fazenda? @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  etapa   Etapa    @relation(fields: [empresaId, etapaId], references: [empresaId, id])
+
+  @@unique([empresaId, codigo])
+  @@map("local")
+}
+
+model Turno {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  nome        String
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  @@unique([empresaId, nome])
+  @@map("turno")
+}
+
+model Motorista {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId       String   @map("empresa_id") @db.Uuid
+  nome            String
+  cpf             String?
+  cnh             String?
+  placaPadrao     String?  @map("placa_padrao")
+  transportadorId String?  @map("transportador_id") @db.Uuid
+  telefone        String?
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor       String?  @map("criado_por") @db.Uuid
+  alteradoEm      DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor     String?  @map("alterado_por") @db.Uuid
+
+  transportador Parceiro? @relation(fields: [empresaId, transportadorId], references: [empresaId, id])
+
+  @@map("motorista")
+}
+
+/// Certificado (§4.8). Validade por fazenda (fazenda_certificado) chega na Fase 7.
+model Certificado {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  codigo      String
+  nome        String
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  @@unique([empresaId, codigo])
+  @@map("certificado")
+}
+
+// ---------------------------------------------------------------- Fase 1: fluxo configurável (§4.3, §5)
+
+enum ClasseEtapa {
+  COLHEITA
+  PROCESSAMENTO
+  ESTOQUE
+  SERVICO
+  SAIDA
+
+  @@map("classe_etapa")
+}
+
+enum ModeloResultado {
+  NENHUM
+  PERCENTUAL_POR_TIPO
+  CAFE_E_PERDA
+  POR_PENEIRA
+  CONVERSAO_ESTOQUE
+
+  @@map("modelo_resultado")
+}
+
+enum Unidade {
+  MEDIDA
+  KG
+
+  @@map("unidade")
+}
+
+/// Etapa do fluxo. O código só conhece a classe, nunca o nome (regra 6).
+model Etapa {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId       String          @map("empresa_id") @db.Uuid
+  codigo          String
+  nome            String
+  classe          ClasseEtapa
+  prefixoLote     String          @map("prefixo_lote")
+  unidadeEntrada  Unidade         @map("unidade_entrada")
+  unidadeSaida    Unidade         @map("unidade_saida")
+  modeloResultado ModeloResultado @map("modelo_resultado")
+  monitoraSecagem Boolean         @default(false) @map("monitora_secagem")
+  umidadeMetaMin  Decimal?        @map("umidade_meta_min") @db.Decimal(5, 2)
+  umidadeMetaMax  Decimal?        @map("umidade_meta_max") @db.Decimal(5, 2)
+  exigeLocal      Boolean         @default(false) @map("exige_local")
+  ordem           Int             @default(0)
+  ativa           Boolean         @default(true)
+  criadoEm        DateTime        @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor       String?         @map("criado_por") @db.Uuid
+  alteradoEm      DateTime        @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor     String?         @map("alterado_por") @db.Uuid
+
+  tiposResultado EtapaTipoResultado[]
+  saidas         FluxoTransicao[]     @relation("origem")
+  entradas       FluxoTransicao[]     @relation("destino")
+  locais         Local[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, prefixoLote])
+  @@unique([empresaId, id])
+  @@map("etapa")
+}
+
+model EtapaTipoResultado {
+  empresaId  String @map("empresa_id") @db.Uuid
+  etapaId    String @map("etapa_id") @db.Uuid
+  tipoCafeId String @map("tipo_cafe_id") @db.Uuid
+  ordem      Int    @default(0)
+
+  etapa    Etapa    @relation(fields: [empresaId, etapaId], references: [empresaId, id])
+  tipoCafe TipoCafe @relation(fields: [empresaId, tipoCafeId], references: [empresaId, id])
+
+  @@id([etapaId, tipoCafeId])
+  @@map("etapa_tipo_resultado")
+}
+
+/// Transição permitida. fazenda_id nulo = vale para a empresa toda (§5.2).
+model FluxoTransicao {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String   @map("empresa_id") @db.Uuid
+  etapaOrigemId  String   @map("etapa_origem_id") @db.Uuid
+  etapaDestinoId String   @map("etapa_destino_id") @db.Uuid
+  fazendaId      String?  @map("fazenda_id") @db.Uuid
+  criadoEm       DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor      String?  @map("criado_por") @db.Uuid
+
+  origem  Etapa    @relation("origem", fields: [empresaId, etapaOrigemId], references: [empresaId, id])
+  destino Etapa    @relation("destino", fields: [empresaId, etapaDestinoId], references: [empresaId, id])
+  fazenda Fazenda? @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+
+  @@index([empresaId, etapaOrigemId])
+  @@map("fluxo_transicao")
+}
+
+// ---------------------------------------------------------------- Fase 1: preços de colheita e permissões
+
+enum TipoColheitaPreco {
+  MANUAL
+  SEMIMECANIZADA
+
+  @@map("tipo_colheita_preco")
+}
+
+/// Preço por medida (§4.5). Vale a regra mais específica: talhão > fazenda > empresa.
+model TabelaPrecoColheita {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String            @map("empresa_id") @db.Uuid
+  fazendaId      String?           @map("fazenda_id") @db.Uuid
+  safraId        String            @map("safra_id") @db.Uuid
+  tipoColheita   TipoColheitaPreco @map("tipo_colheita")
+  talhaoId       String?           @map("talhao_id") @db.Uuid
+  valorPorMedida Decimal           @map("valor_por_medida") @db.Decimal(14, 2)
+  vigenciaInicio DateTime          @map("vigencia_inicio") @db.Date
+  vigenciaFim    DateTime?         @map("vigencia_fim") @db.Date
+  ativo          Boolean           @default(true)
+  criadoEm       DateTime          @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor      String?           @map("criado_por") @db.Uuid
+  alteradoEm     DateTime          @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor    String?           @map("alterado_por") @db.Uuid
+
+  fazenda Fazenda? @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  safra   Safra    @relation(fields: [empresaId, safraId], references: [empresaId, id])
+  talhao  Talhao?  @relation(fields: [empresaId, talhaoId], references: [empresaId, id])
+
+  @@map("tabela_preco_colheita")
+}
+
+/// Ajustes da empresa na matriz perfil × permissão (§3.2). Sem linha = valor padrão do domínio.
+model PerfilPermissao {
+  empresaId String  @map("empresa_id") @db.Uuid
+  perfil    Perfil
+  permissao String
+  permitido Boolean
+
+  @@id([empresaId, perfil, permissao])
+  @@map("perfil_permissao")
 }

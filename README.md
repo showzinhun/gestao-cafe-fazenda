@@ -18,7 +18,7 @@ npm install
 docker compose up -d db         # Postgres 16 com os bancos cafe e cafe_test
 npx prisma migrate deploy       # tabelas, papel cafe_app e políticas RLS
 npm run db:papel-app            # login da aplicação (cafe_app_login), sem BYPASSRLS
-npm run seed                    # 2 empresas fictícias
+npm run seed                    # 2 empresas fictícias (Alfa: Via úmida, com NS, T1 e T2; Beta: Simplificado)
 npm run dev                     # http://localhost:3000
 ```
 
@@ -30,6 +30,19 @@ Usuários do seed (senha `senha123`, só para desenvolvimento):
 | operador@alfa.exemplo | Operador da Alfa |
 | admin@beta.exemplo | Administrador da Beta |
 | consultora@exemplo.com | Gestora na Alfa e Consulta na Beta (testa a troca de empresa) |
+
+### Nova empresa
+
+Até a área do SUPERADMIN (Fase 8), uma empresa é criada pelo script. Ele copia o modelo de fluxo escolhido (`VIA_UMIDA`, `VIA_SECA` ou `SIMPLIFICADO`, §5.3) e os cadastros básicos (tipos de café, peneiras, certificados e turnos):
+
+```bash
+npm run empresa:criar -- --nome "Fazenda Exemplo" --modelo VIA_UMIDA \
+  --admin-email admin@exemplo.com --admin-nome "Nome do Admin" --admin-senha "uma-senha-forte"
+```
+
+Depois, o administrador ajusta o fluxo em **Configuração → Fluxo de etapas**, cadastra fazendas e talhões (desenhando no mapa ou importando GeoJSON) e libera as fazendas de cada usuário em **Usuários e acessos**.
+
+O mapa usa MapLibre com o fundo do OpenStreetMap. O worker do MapLibre é copiado para `public/vendor` no `npm install` e antes do `dev`/`build`.
 
 ## Testes
 
