@@ -7,6 +7,7 @@ import { cnpjValido, cpfValido, formatarCpfCnpj, normalizarPlaca, placaValida, s
 import { codigoFazendaValido, normalizarCodigoFazenda, UFS } from '@/dominio/fazenda';
 import { GeometriaInvalida, processarGeometria } from '@/dominio/geometria';
 import { vigenciasSobrepostas } from '@/dominio/precos';
+import { alertasDoTalhao } from './talhoes-alertas';
 
 /**
  * Cadastros do §4.2 com um mesmo ciclo de vida: listar, obter, criar, alterar e inativar.
@@ -67,6 +68,8 @@ interface Definicao {
   esquema: z.ZodType<Dados>;
   /** Converte e valida contra outros cadastros da empresa. Lança ErroValidacao. */
   preparar?: (dados: Dados, tx: Tx, atual: Dados | null) => Promise<{ dados: Dados; avisos?: string[] }>;
+  /** Depois de gravar (ex.: alertas que precisam do id). Devolve avisos extras. */
+  depois?: (tx: Tx, ctx: Contexto, registro: Dados, atual: Dados | null) => Promise<string[]>;
   filtros?: readonly string[];
 }
 
@@ -162,6 +165,7 @@ const DEF = {
       } else delete d.geometria;
       return { dados: d, avisos };
     },
+    depois: alertasDoTalhao,
   },
   safras: {
     entidade: 'safra',
@@ -350,6 +354,7 @@ export async function criar(ctx: Contexto, recurso: Recurso, entrada: unknown) {
       erroDeBanco(e, d.rotulo);
     }
     await auditar(tx, ctx, { entidade: d.entidade, entidadeId: String(r.id), acao: 'CRIAR', depois: r });
+    if (d.depois) avisos.push(...(await d.depois(tx, ctx, r, null)));
     return { registro: r, avisos };
   });
 }
@@ -373,6 +378,7 @@ export async function alterar(ctx: Contexto, recurso: Recurso, idRegistro: strin
       erroDeBanco(e, d.rotulo);
     }
     await auditar(tx, ctx, { entidade: d.entidade, entidadeId: idRegistro, acao: 'ALTERAR', antes: atual, depois: r });
+    if (d.depois) avisos.push(...(await d.depois(tx, ctx, r, atual)));
     return { registro: r, avisos };
   });
 }

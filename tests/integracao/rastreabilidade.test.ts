@@ -311,7 +311,8 @@ describe('regras de rastreabilidade', () => {
     expect(gs.movimento.fazendaId).toBeNull();
     expect(gs.movimento.safraId).toBe(SAFRA);
     expect(gs.movimento.misturaSafras).toHaveLength(2);
-    const r = await lancarResultados(ctx, gs.movimento.id, { parametros: { modelo: 'POR_PENEIRA', lotes: [{ quantidade: '380', peneiraId: PEN['17']! }] } });
+    await regra(lancarResultados(ctx, gs.movimento.id, { parametros: { modelo: 'POR_PENEIRA', lotes: [{ quantidade: '380', peneiraId: PEN['17']! }] } }), 'RN-28');
+    const r = await lancarResultados(ctx, gs.movimento.id, { parametros: { modelo: 'POR_PENEIRA', lotes: [{ quantidade: '380', peneiraId: PEN['17']! }] }, motivoRebaixamento: 'Blend com café de fazenda sem RFA' });
     const l = await obterLote(ctx, r.lotes[0]!.id);
     expect(l.codigo).toMatch(/^GS-MIX-2526-\d{6}-P17$/);
     expect(l.fazendaId).toBeNull();

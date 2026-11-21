@@ -207,6 +207,10 @@ function FormResultados({ m, opcoes, pendente, aoLancar }: { m: Mov; opcoes: Rec
   const [linhas, setLinhas] = useState<LinhaLote[]>([{ quantidade: '', peneiraId: '', tipoCafeId: '', localId: m.local?.id ?? '' }]);
   // A umidade final é sugerida pela última leitura (§7).
   const [umidade, setUmidade] = useState(m.ultimaUmidade ? m.ultimaUmidade.replace('.', ',') : '');
+  // Serviço: perder certificado de alguma origem (RN-28) ou passar do limite de quebra (RN-31) exige motivo.
+  const servico = m.etapa.classe === 'SERVICO';
+  const [motivoRebaixamento, setMotivoRebaixamento] = useState('');
+  const [motivoQuebra, setMotivoQuebra] = useState('');
 
   // Prévia (o servidor recalcula e confere: RN-10, RN-12).
   let saidas: { rotulo: string; q: Decimal | null }[] = [];
@@ -217,7 +221,7 @@ function FormResultados({ m, opcoes, pendente, aoLancar }: { m: Mov; opcoes: Rec
   const conversao = modelo === 'CONVERSAO_ESTOQUE' && m.unidade === 'MEDIDA';
 
   const enviar = () => {
-    const base = { umidadeFinal: umidade ? paraApi(umidade) : null };
+    const base = { umidadeFinal: umidade ? paraApi(umidade) : null, ...(servico ? { motivoRebaixamento: motivoRebaixamento || null, motivoQuebra: motivoQuebra || null } : {}) };
     if (modelo === 'PERCENTUAL_POR_TIPO')
       return aoLancar({ ...base, parametros: { modelo, resultados: m.etapa.tiposResultado.filter((t) => dec(pcts[t.id] ?? '')).map((t) => ({ tipoCafeId: t.id, percentual: dec(pcts[t.id]!)!.div(100).toString() })) } });
     if (modelo === 'CAFE_E_PERDA')
@@ -272,6 +276,12 @@ function FormResultados({ m, opcoes, pendente, aoLancar }: { m: Mov; opcoes: Rec
             </div>
           ))}
           <Botao type="button" variante="texto" className="justify-self-start px-0" onClick={() => setLinhas([...linhas, { quantidade: '', peneiraId: '', tipoCafeId: '', localId: m.local?.id ?? '' }])}><Plus className="size-4" /> Outro lote</Botao>
+        </div>
+      ) : null}
+      {servico ? (
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
+          <Campo rotulo="Motivo do rebaixamento" dica="Se alguma origem tiver certificado que o resultado não terá (RN-28)"><Entrada value={motivoRebaixamento} onChange={(e) => setMotivoRebaixamento(e.target.value)} /></Campo>
+          <Campo rotulo="Motivo da quebra" dica="Se a quebra passar do limite do tipo de serviço (RN-31)"><Entrada value={motivoQuebra} onChange={(e) => setMotivoQuebra(e.target.value)} /></Campo>
         </div>
       ) : null}
       {m.etapa.monitoraSecagem ? <Campo rotulo="Umidade final (%)" className="max-w-[200px]"><Entrada inputMode="decimal" value={umidade} onChange={(e) => setUmidade(e.target.value)} /></Campo> : null}

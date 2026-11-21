@@ -23,7 +23,7 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
   { titulo: 'Comercial', itens: [
     { href: '/contratos', rotulo: 'Contratos', icone: FileCheck2 },
     { href: '/embarques', rotulo: 'Embarques', icone: Ship },
-    { href: '/conformidade', rotulo: 'Conformidade', icone: ShieldCheck, fase: 7 },
+    { href: '/conformidade', rotulo: 'Conformidade', icone: ShieldCheck },
   ] },
   { titulo: 'Configuração', itens: [
     { href: '/cadastros/fazendas', rotulo: 'Fazendas', icone: Map },

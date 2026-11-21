@@ -1,10 +1,12 @@
 import { ErroNaoEncontrado, ErroRegra, ErroValidacao } from '@/dominio/erros';
 import { exigirCertificadosDoContrato, peneiraAtende } from '@/dominio/comercial';
+import { exigirLoteEudr } from '@/dominio/eudr';
+import { talhoesDosLotes, talhoesEudr } from './eudr-base';
 import type { Tx } from './transacao';
 
 /**
  * Validações de um lote para um contrato (§9.3): certificados exigidos (RN-17) e peneira mínima.
- * A RN-18 (EUDR) entra aqui na Fase 7. Usada na reserva de contrato e na entrada do embarque.
+ * e EUDR (RN-18) quando o contrato exige. Usada na reserva de contrato e na entrada do embarque.
  */
 export async function validarLoteParaContrato(tx: Tx, contratoId: string, loteId: string) {
   const contrato = await tx.contrato.findFirst({ where: { id: contratoId }, include: { certificados: { include: { certificado: true } }, peneiraMin: true } });
@@ -17,6 +19,10 @@ export async function validarLoteParaContrato(tx: Tx, contratoId: string, loteId
   );
   if (!peneiraAtende(lote.peneira, contrato.peneiraMin))
     throw new ErroRegra('RN-17', `O lote ${lote.codigo} (${lote.peneira ? `P${lote.peneira.codigo}` : 'sem peneira'}) não atende a peneira mínima ${contrato.peneiraMin!.codigo} do contrato.`);
+  if (contrato.exigeEudr) {
+    const ids = (await talhoesDosLotes(tx, [lote.id])).get(lote.id) ?? [];
+    exigirLoteEudr(lote.codigo, [...(await talhoesEudr(tx, ids)).values()]);
+  }
   return { contrato, lote };
 }
 

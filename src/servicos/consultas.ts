@@ -5,6 +5,8 @@ import { saldoDoLote, saldoLivre } from '@/dominio/lote';
 import { comTransacao, ehUuid, type Contexto, type Tx } from './transacao';
 import { dataLocal, dec } from './rastreio-base';
 import { formatarNumero } from '@/lib/formatacao';
+import { situacaoEudr, type SituacaoEudr } from '@/dominio/eudr';
+import { talhoesDosLotes, talhoesEudr } from './eudr-base';
 
 /**
  * Leituras para as telas da Fase 3 (§12 itens 6, 8, 10 e 12). Sem regra de negócio:
@@ -205,6 +207,8 @@ export async function lotesParaEntrada(ctx: Contexto, etapaId: string) {
 // ================================================================ estoque (§12 item 10)
 
 export interface FiltroEstoque {
+  /** Só lotes cujos talhões estão aptos à EUDR (geometria válida e checagem SEM_ALERTA vigente, §12). */
+  aptoEudr?: boolean;
   etapaId?: string;
   safraId?: string;
   fazendaId?: string; // 'MIX' para lotes de várias fazendas
@@ -250,7 +254,16 @@ export async function consultarEstoque(ctx: Contexto, f: FiltroEstoque = {}) {
         certificados: l.certificados.map((c) => c.certificado.codigo), locais: l.locais.map((x) => ({ id: x.local.id, codigo: x.local.codigo, quantidade: dec(x.quantidade).toFixed(3) })),
       };
     });
-    const filtradas = f.situacao === 'livre' ? linhas.filter((l) => dec(l.livre).gt(0)) : linhas;
+    // Situação EUDR de cada lote: a pior dos talhões da composição.
+    const porLote = await talhoesDosLotes(tx, linhas.map((l) => l.id));
+    const eudr = await talhoesEudr(tx, [...porLote.values()].flat());
+    const ordem = { APTO: 0, PENDENTE: 1, BLOQUEADO: 2 } as const;
+    const comEudr = linhas.map((l) => {
+      const situacoes = (porLote.get(l.id) ?? []).map((t) => situacaoEudr(eudr.get(t)!));
+      const pior = situacoes.reduce<SituacaoEudr>((a, b) => (ordem[b] > ordem[a] ? b : a), situacoes.length ? 'APTO' : 'PENDENTE');
+      return { ...l, eudr: pior };
+    });
+    const filtradas = comEudr.filter((l) => (f.situacao !== 'livre' || dec(l.livre).gt(0)) && (!f.aptoEudr || l.eudr === 'APTO'));
     const total = (campo: 'saldo' | 'livre' | 'reservado', unidade: 'KG' | 'MEDIDA') => filtradas.filter((l) => l.unidade === unidade).reduce((s, l) => s.plus(l[campo]), new Decimal(0)).toFixed(3);
     return { lotes: filtradas, totais: { kg: { saldo: total('saldo', 'KG'), livre: total('livre', 'KG'), reservado: total('reservado', 'KG') }, medidas: { saldo: total('saldo', 'MEDIDA') } } };
   });

@@ -12,11 +12,12 @@ import { Aviso } from '@/componentes/ui/aviso';
 import { Documentos, num } from './comum';
 import { paraApi } from '@/lib/formatos';
 import { ReservarLotes, type ContratoAberto } from '@/componentes/comercial/reservar-lotes';
+import { SeloEudr } from '@/componentes/conformidade/selos';
 
 type Opcao = { valor: string; rotulo: string; grupo?: string };
 type Linha = {
   id: string; codigo: string; etapa: string; etapaId: string; safra: string; fazenda: string; tipo: string | null; peneira: string | null; unidade: string; data: string;
-  saldo: string; livre: string; reservado: string; reservas: string[]; certificados: string[]; locais: { id: string; codigo: string; quantidade: string }[];
+  saldo: string; livre: string; reservado: string; reservas: string[]; certificados: string[]; locais: { id: string; codigo: string; quantidade: string }[]; eudr: string;
 };
 type Dados = { lotes: Linha[]; totais: { kg: { saldo: string; livre: string; reservado: string }; medidas: { saldo: string } } };
 
@@ -61,6 +62,9 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contr
         <Campo rotulo="Situação">
           <Selecao name="situacao" defaultValue={filtro.situacao ?? ''}><option value="">Todos</option><option value="livre">Com saldo livre</option><option value="reservado">Com reserva</option></Selecao>
         </Campo>
+        <Campo rotulo="EUDR">
+          <Selecao name="eudr" defaultValue={filtro.eudr ?? ''}><option value="">Todos</option><option value="apto">Só aptos à EUDR</option></Selecao>
+        </Campo>
         <Campo rotulo="Código"><Entrada name="q" defaultValue={filtro.q ?? ''} placeholder="AR-NS…" /></Campo>
         <div className="flex gap-2">
           <Botao type="submit">Filtrar</Botao>
@@ -82,7 +86,7 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contr
           )) : null}
           {podeReservar ? <Botao variante="secundario" disabled={!sel.length || !contratos.length} title={contratos.length ? undefined : 'Nenhum contrato assinado com saldo a reservar'} onClick={() => setReservando(true)}>Reservar para contrato</Botao> : null}
           <Link href="/embarques" className={estiloBotao({ variante: 'secundario' })}>Embarques</Link>
-          <Documentos csv={{ nome: 'estoque.csv', linhas: [['Lote', 'Etapa', 'Safra', 'Fazenda', 'Tipo', 'Peneira', 'Saldo', 'Livre', 'Reservado', 'Unidade', 'Certificados', 'Locais'], ...dados.lotes.map((l) => [l.codigo, l.etapa, l.safra, l.fazenda, l.tipo, l.peneira, l.saldo, l.livre, l.reservado, l.unidade, l.certificados.join(' '), l.locais.map((x) => `${x.codigo}:${x.quantidade}`).join(' ')])] }} />
+          <Documentos csv={{ nome: 'estoque.csv', linhas: [['Lote', 'Etapa', 'Safra', 'Fazenda', 'Tipo', 'Peneira', 'Saldo', 'Livre', 'Reservado', 'Unidade', 'Certificados', 'EUDR', 'Locais'], ...dados.lotes.map((l) => [l.codigo, l.etapa, l.safra, l.fazenda, l.tipo, l.peneira, l.saldo, l.livre, l.reservado, l.unidade, l.certificados.join(' '), l.eudr, l.locais.map((x) => `${x.codigo}:${x.quantidade}`).join(' ')])] }} />
         </div>
       </div>
       {reservando ? (
@@ -97,14 +101,14 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contr
         </section>
       ) : null}
       <div className="sombra overflow-x-auto rounded-xl border border-linha bg-superficie">
-        <table className="w-full min-w-[980px] border-collapse text-[13.5px]">
+        <table className="w-full min-w-[1080px] border-collapse text-[13.5px]">
           <thead>
             <tr className="bg-superficie-2 text-left font-mono text-[11px] tracking-wider text-tinta-2 uppercase">
               <th className="w-10 px-3 py-3">
                 <input type="checkbox" aria-label="Selecionar todos" checked={!!dados.lotes.length && sel.length === dados.lotes.length} onChange={(e) => setSel(e.target.checked ? dados.lotes.map((l) => l.id) : [])} />
               </th>
               <th className="px-3 py-3">Lote</th><th className="px-3 py-3">Safra · fazenda</th><th className="px-3 py-3">Tipo / peneira</th><th className="px-3 py-3 text-right">Saldo</th>
-              <th className="px-3 py-3 text-right">Livre</th><th className="px-3 py-3">Reservas</th><th className="px-3 py-3">Certificados</th><th className="px-3 py-3">Locais</th><th className="px-3 py-3" />
+              <th className="px-3 py-3 text-right">Livre</th><th className="px-3 py-3">Reservas</th><th className="px-3 py-3">Certificados</th><th className="px-3 py-3">EUDR</th><th className="px-3 py-3">Locais</th><th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -118,6 +122,7 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contr
                 <td className="px-3 py-2.5 text-right font-mono">{num(l.livre)}</td>
                 <td className="px-3 py-2.5 text-[12.5px]">{l.reservas.join(', ') || '—'}</td>
                 <td className="px-3 py-2.5">{l.certificados.join(', ') || <span className="text-tinta-2">convencional</span>}</td>
+                <td className="px-3 py-2.5"><SeloEudr situacao={l.eudr} /></td>
                 <td className="px-3 py-2.5 text-[12.5px]">
                   {removendo === l.id ? (
                     <FormRemocao lote={l} locais={(opcoes.locais ?? []).filter((x) => x.grupo === l.etapaId)} pendente={pendente} aoCancelar={() => setRemovendo(null)}
@@ -131,7 +136,7 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contr
                 <td className="px-3 py-2.5 text-right">{podeLancar && l.locais.length && removendo !== l.id ? <Botao variante="secundario" tamanho="pequeno" onClick={() => setRemovendo(l.id)}>Remover</Botao> : null}</td>
               </tr>
             )) : (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-tinta-2">Nenhum lote com esses filtros.</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-tinta-2">Nenhum lote com esses filtros.</td></tr>
             )}
           </tbody>
         </table>

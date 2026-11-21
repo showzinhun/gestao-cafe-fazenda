@@ -29,3 +29,27 @@ export function rota<P>(fn: (ctx: Contexto, req: Request, params: P) => Promise<
     }
   };
 }
+
+/** Rota de arquivo (PDF, CSV, GeoJSON, JSON): mesmo tratamento de erros, resposta binária. */
+export function download<P>(fn: (ctx: Contexto, req: Request, params: P) => Promise<{ conteudo: Buffer | string; tipo: string; nome: string; inline?: boolean }>) {
+  return async (req: Request, info: { params: Promise<P> }) => {
+    try {
+      const ctx = await contextoDaSessao();
+      if (!ctx) return NextResponse.json({ mensagem: 'Não autenticado ou sem empresa ativa.' }, { status: 401 });
+      const a = await fn(ctx, req, await info.params);
+      const corpo = typeof a.conteudo === 'string' ? a.conteudo : new Uint8Array(a.conteudo);
+      const nome = a.nome.replace(/["\\\r\n]/g, '_');
+      return new NextResponse(corpo, {
+        headers: { 'content-type': a.tipo, 'content-disposition': `${a.inline ? 'inline' : 'attachment'}; filename="${nome}"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
+      });
+    } catch (e) {
+      return respostaDeErro(e);
+    }
+  };
+}
+
+/** ?versao=N opcional. */
+export const versaoDaUrl = (req: Request) => {
+  const v = Number(new URL(req.url).searchParams.get('versao'));
+  return Number.isInteger(v) && v > 0 ? v : undefined;
+};
