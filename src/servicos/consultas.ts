@@ -141,6 +141,7 @@ export async function detalheMovimento(ctx: Contexto, movimentoId: string) {
       ? await composicaoDe(tx, ativos.map((l) => ({ loteId: l.id, quantidade: dec(l.quantidade) })))
       : await composicaoDe(tx, m.entradas.map((e) => ({ loteId: e.loteId, quantidade: dec(e.quantidade) })));
     const historico = await tx.auditoria.findMany({ where: { entidadeId: m.id }, orderBy: { data: 'asc' } });
+    const ultimaLeitura = await tx.leituraSecagem.findFirst({ where: { movimentoId: m.id, cancelada: false }, orderBy: { dataHora: 'desc' } });
     const nomes = new Map((await tx.usuarioEmpresa.findMany({ where: { usuarioId: { in: [...new Set(historico.map((h) => h.usuarioId).filter((x): x is string => !!x))] } }, include: { usuario: { select: { id: true, nome: true } } } })).map((v) => [v.usuario.id, v.usuario.nome]));
     const quem = (id: string | null) => (id ? (nomes.get(id) ?? 'usuário') : null);
     const evento = (acao: string) => historico.filter((h) => h.acao === acao).at(-1);
@@ -165,6 +166,7 @@ export async function detalheMovimento(ctx: Contexto, movimentoId: string) {
         certificados: l.certificados.map((c) => c.certificado.codigo), locais: l.locais.map((x) => ({ codigo: x.local.codigo, quantidade: dec(x.quantidade).toFixed(3) })),
       })),
       composicao,
+      ultimaUmidade: ultimaLeitura?.umidade.toString() ?? null,
       linhaDoTempo,
       historico: historico.map((h) => ({ id: h.id, acao: h.acao, quando: h.data, quem: quem(h.usuarioId), depois: h.depois })),
     };
