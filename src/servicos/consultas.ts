@@ -4,6 +4,7 @@ import { ErroNaoEncontrado } from '@/dominio/erros';
 import { saldoDoLote, saldoLivre } from '@/dominio/lote';
 import { comTransacao, ehUuid, type Contexto, type Tx } from './transacao';
 import { dataLocal, dec } from './rastreio-base';
+import { formatarNumero } from '@/lib/formatacao';
 
 /**
  * Leituras para as telas da Fase 3 (§12 itens 6, 8, 10 e 12). Sem regra de negócio:
@@ -245,7 +246,7 @@ export async function consultarEstoque(ctx: Contexto, f: FiltroEstoque = {}) {
         id: l.id, codigo: l.codigo, etapa: l.etapa.nome, etapaId: l.etapa.id, classe: l.etapa.classe, safra: l.safra.codigo, fazenda: l.fazenda?.codigo ?? 'MIX',
         tipo: l.tipoCafe?.codigo ?? null, peneira: l.peneira?.codigo ?? null, unidade: l.unidade, data: dataLocal(l.data), umidade: l.umidade?.toString() ?? null,
         saldo: saldoDoLote(base).toFixed(3), livre: saldoLivre(base).toFixed(3), reservado: dec(l.quantidadeReservada).toFixed(3),
-        reservas: l.reservas.map((r) => `${r.finalidade.toLowerCase()} ${dec(r.quantidade).toFixed(3)}`),
+        reservas: l.reservas.map((r) => `${r.finalidade.toLowerCase()} ${formatarNumero(dec(r.quantidade))}`),
         certificados: l.certificados.map((c) => c.certificado.codigo), locais: l.locais.map((x) => ({ id: x.local.id, codigo: x.local.codigo, quantidade: dec(x.quantidade).toFixed(3) })),
       };
     });
