@@ -18,3 +18,10 @@ export function paraApi(t: string): string {
 
 /** Valor do servidor ("1200.000") para o campo da tela ("1200,000"). */
 export const paraCampo = (v: string) => v.replace('.', ',');
+/** Preço com duas casas fixas e símbolo da moeda do contrato (R$ 1.800,00 / US$ 210,50). */
+export const preco = (v: string | null | undefined, moeda: string = 'BRL') => {
+  if (v == null || v === '') return '—';
+  const d = new Decimal(v).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+  const [i = '0', f = '00'] = d.abs().toFixed(2).split('.');
+  return `${moeda === 'USD' ? 'US$' : 'R$'} ${d.isNegative() ? '-' : ''}${i.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${f}`;
+};

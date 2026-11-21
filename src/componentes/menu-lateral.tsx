@@ -21,8 +21,8 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
   ] },
   { titulo: 'Consulta', itens: [{ href: '/rastreabilidade', rotulo: 'Rastreabilidade', icone: GitBranch }, { href: '/alertas', rotulo: 'Alertas', icone: Bell }] },
   { titulo: 'Comercial', itens: [
-    { href: '/contratos', rotulo: 'Contratos', icone: FileCheck2, fase: 6 },
-    { href: '/embarques', rotulo: 'Embarques', icone: Ship, fase: 6 },
+    { href: '/contratos', rotulo: 'Contratos', icone: FileCheck2 },
+    { href: '/embarques', rotulo: 'Embarques', icone: Ship },
     { href: '/conformidade', rotulo: 'Conformidade', icone: ShieldCheck, fase: 7 },
   ] },
   { titulo: 'Configuração', itens: [
