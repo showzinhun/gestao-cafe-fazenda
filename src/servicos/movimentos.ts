@@ -7,6 +7,7 @@ import { calcularResultado, type ParametrosResultado } from '@/dominio/resultado
 import { divergenciaCarga } from '@/dominio/colheita';
 import { qtd } from '@/dominio/quantidade';
 import { auditar } from './auditoria';
+import { emitirAlerta } from './alertas';
 import { comTransacao, ehUuid, exigir, type Contexto, type Tx } from './transacao';
 import {
   certificadosAtivos, certificadosDeFazendas, codigoLivre, composicoes, dataLocal, dec, destinosDoLote, exigirFazendas, exigirMotivo, exigirTransicao,
@@ -114,6 +115,7 @@ export async function registrarCarga(ctx: Contexto, entrada: z.input<typeof carg
     if (ids.length) await tx.cargaApontamento.createMany({ data: ids.map((apontamentoId) => ({ empresaId: ctx.empresaId, cargaId: carga.id, apontamentoId })) });
     await auditar(tx, ctx, { entidade: 'movimento', entidadeId: mov.id, acao: 'CARGA', depois: { etapa: etapa.codigo, numero, talhao: talhao.codigo, quantidade: q, lote: codigo, apontadas: apontadas.toFixed(3), divergencia: div.diferenca.toFixed(3) } });
     const alertas: Alerta[] = div.alerta ? [{ codigo: 'DIVERGENCIA', mensagem: `Divergência de ${div.diferenca.toFixed(3)} medidas (${div.perc!.times(100).toFixed(1)}%) entre o medido e o apontado.` }] : [];
+    if (div.alerta) await emitirAlerta(tx, ctx.empresaId, { tipo: 'DIVERGENCIA_CARGA', chave: `DIVERGENCIA_CARGA:${carga.id}`, entidade: 'movimento', entidadeId: mov.id, mensagem: `Carga ${talhao.codigo} nº ${numero}: ${alertas[0]!.mensagem}` });
     return { movimento: mov, lote, carga, alertas };
   });
 }
@@ -368,6 +370,7 @@ async function conferirCapacidade(tx: Tx, ctx: Contexto, mov: Mov): Promise<{ al
   const mensagem = `O local ${local.codigo} fica com ${pct.times(100).toFixed(1)}% da capacidade (${ocupado.toFixed(3)} de ${dec(local.capacidade).toFixed(3)}).`;
   const empresa = await tx.empresa.findFirst({ where: { id: ctx.empresaId }, select: { configuracoes: true } });
   if ((empresa?.configuracoes as Record<string, unknown> | null)?.bloquear_capacidade === true) throw new ErroRegra('RN-24', `${mensagem} A empresa bloqueia entradas acima da capacidade.`);
+  await emitirAlerta(tx, ctx.empresaId, { tipo: 'CAPACIDADE', chave: `CAPACIDADE:${mov.id}`, entidade: 'movimento', entidadeId: mov.id, mensagem, severidade: 'AVISO' });
   return { alertas: [{ codigo: 'RN-24', mensagem }], ocupacao };
 }
 

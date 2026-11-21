@@ -8,6 +8,8 @@ import { abrirInventario, aprovarInventario, cancelarInventario, registrarContag
 import { cancelarReserva, criarReserva } from '@/servicos/reservas';
 import { definirCertificadosLote } from '@/servicos/lotes';
 import { buscar } from '@/servicos/consultas';
+import { lancarLeitura } from '@/servicos/secagem';
+import { marcarAlertaLido, marcarTodosLidos } from '@/servicos/alertas';
 
 /** Ações das telas operacionais (Fase 3): finas, só chamam os serviços (regra 2). */
 
@@ -81,3 +83,26 @@ export async function acaoBuscar(termo: string) {
     return falha(e);
   }
 }
+
+// ---------------------------------------------------------------- secagem e alertas (Fase 5)
+
+export const acaoLancarLeitura = async (movimentoId: string, d: { dataHora: string; umidade: string; temperaturaMassa?: string | null; temperaturaAr?: string | null; observacao?: string | null }) =>
+  executar('Leitura registrada.', async () => void (await lancarLeitura(await ctx(), movimentoId, d)));
+export const acaoAlertaLido = async (id: string) => {
+  try {
+    await marcarAlertaLido(await ctx(), id);
+    revalidatePath('/', 'layout');
+    return { ok: true as const };
+  } catch (e) {
+    return falha(e);
+  }
+};
+export const acaoTodosLidos = async () => {
+  try {
+    await marcarTodosLidos(await ctx());
+    revalidatePath('/', 'layout');
+    return { ok: true as const };
+  } catch (e) {
+    return falha(e);
+  }
+};

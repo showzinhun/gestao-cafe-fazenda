@@ -61,14 +61,14 @@ export function Apontamento({ empresaId, dadosServidor, hoje }: { empresaId: str
     [empresaId, hoje, escolha.talhaoId],
     [] as RegistroLocal[],
   );
-  const pendentes = useConsulta(() => bancoCampo().registros.where({ empresaId, pendente: 1 }).count(), [empresaId], 0);
+  const pendentes = useConsulta(async () => (await bancoCampo().registros.where({ empresaId, pendente: 1 }).count()) + (await bancoCampo().leituras.where({ empresaId, pendente: 1 }).count()), [empresaId], 0);
 
   const sincronizar = async (silencioso = false) => {
     if (!navigator.onLine) return !silencioso && setAviso({ tipo: 'erro', texto: 'Sem sinal. Os apontamentos ficam guardados no aparelho.' });
     setEnviando(true);
     try {
       const r = await sincronizarPendentes(empresaId);
-      if (!silencioso || r.conflitos) setAviso(r.conflitos ? { tipo: 'erro', texto: `${r.conflitos} apontamento(s) mudaram no escritório: vale o valor do servidor.` } : { tipo: 'ok', texto: r.enviados ? `${r.enviados} apontamento(s) sincronizado(s).` : 'Tudo em dia.' });
+      if (!silencioso || r.conflitos) setAviso(r.conflitos ? { tipo: 'erro', texto: `${r.conflitos} apontamento(s) mudaram no escritório: vale o valor do servidor.` } : { tipo: 'ok', texto: r.enviados ? `${r.enviados} registro(s) sincronizado(s).` : 'Tudo em dia.' });
     } catch (e) {
       if (!silencioso) setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha na sincronização.' });
     } finally {
