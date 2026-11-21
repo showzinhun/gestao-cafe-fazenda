@@ -108,6 +108,11 @@ model Fazenda {
   movimentos   Movimento[]
   lotes        Lote[]
 
+  turmas       Turma[]
+  apontamentos Apontamento[]
+  cargas       CargaColheita[]
+  fechamentos  FechamentoPagamento[]
+
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
   @@map("fazenda")
@@ -211,6 +216,9 @@ model Talhao {
   movimentos Movimento[]
   lotes      LoteTalhao[]
 
+  apontamentos Apontamento[]
+  cargas       CargaColheita[]
+
   @@unique([fazendaId, codigo])
   @@unique([empresaId, id])
   @@map("talhao")
@@ -232,6 +240,9 @@ model Safra {
 
   movimentos Movimento[]
   lotes      Lote[]
+
+  apontamentos Apontamento[]
+  cargas       CargaColheita[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, id])
@@ -672,6 +683,8 @@ model Movimento {
   lotes    Lote[]
   reservas Reserva[]
 
+  carga CargaColheita?
+
   @@unique([empresaId, etapaId, numero])
   @@unique([empresaId, id])
   @@index([empresaId, localId, status])
@@ -908,4 +921,265 @@ model InventarioItem {
 
   @@unique([inventarioId, loteId, localId])
   @@map("inventario_item")
+}
+
+// ---------------------------------------------------------------- Fase 4: colhedores, apontamento e pagamento (§4.5, §6)
+
+model Turma {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  fazendaId   String   @map("fazenda_id") @db.Uuid
+  nome        String
+  responsavel String?
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  fazenda      Fazenda       @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  colhedores   Colhedor[]
+  apontamentos Apontamento[]
+
+  @@unique([fazendaId, nome])
+  @@unique([empresaId, id])
+  @@map("turma")
+}
+
+/// Colhedor. CPF e chave PIX são dados pessoais: cifrados, mascarados e auditados ao revelar (§3.3).
+model Colhedor {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String   @map("empresa_id") @db.Uuid
+  turmaId     String?  @map("turma_id") @db.Uuid
+  nome        String
+  apelido     String?
+  cpfCifrado  String?  @map("cpf_cifrado")
+  cpfMascara  String?  @map("cpf_mascara")
+  cpfHash     String?  @map("cpf_hash") // HMAC: impede CPF repetido sem guardar o CPF aberto
+  pixCifrado  String?  @map("pix_cifrado")
+  pixMascara  String?  @map("pix_mascara")
+  telefone    String?
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor   String?  @map("criado_por") @db.Uuid
+  alteradoEm  DateTime @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor String?  @map("alterado_por") @db.Uuid
+
+  turma        Turma?               @relation(fields: [empresaId, turmaId], references: [empresaId, id])
+  apontamentos Apontamento[]
+  lancamentos  LancamentoColhedor[]
+  itens        FechamentoItem[]
+
+  @@unique([empresaId, id])
+  @@map("colhedor")
+}
+
+enum StatusApontamento {
+  PENDENTE
+  FECHADO
+  CANCELADO
+
+  @@map("status_apontamento")
+}
+
+/// Medidas de um colhedor num talhão num dia (RN-19). O id é o UUID gerado no aparelho.
+model Apontamento {
+  id              String            @id @db.Uuid
+  empresaId       String            @map("empresa_id") @db.Uuid
+  data            DateTime          @db.Date
+  fazendaId       String            @map("fazenda_id") @db.Uuid
+  talhaoId        String            @map("talhao_id") @db.Uuid
+  safraId         String            @map("safra_id") @db.Uuid
+  colhedorId      String            @map("colhedor_id") @db.Uuid
+  turmaId         String?           @map("turma_id") @db.Uuid
+  tipoCafeId      String?           @map("tipo_cafe_id") @db.Uuid
+  tipoColheita    TipoColheitaPreco @default(MANUAL) @map("tipo_colheita")
+  medidas         Decimal           @db.Decimal(14, 3)
+  apontadorId     String?           @map("apontador_id") @db.Uuid
+  dispositivoId   String?           @map("dispositivo_id")
+  criadoOfflineEm DateTime?         @map("criado_offline_em") @db.Timestamptz(6)
+  sincronizadoEm  DateTime          @default(now()) @map("sincronizado_em") @db.Timestamptz(6)
+  versao          Int               @default(1) // muda a cada correção no servidor (RN-23)
+  valorUnitario   Decimal?          @map("valor_unitario") @db.Decimal(14, 2) // congelado no fechamento (RN-20)
+  status          StatusApontamento @default(PENDENTE)
+  fechamentoId    String?           @map("fechamento_id") @db.Uuid
+  motivoCorrecao  String?           @map("motivo_correcao")
+  criadoEm        DateTime          @default(now()) @map("criado_em") @db.Timestamptz(6)
+  alteradoEm      DateTime          @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor     String?           @map("alterado_por") @db.Uuid
+
+  fazenda    Fazenda              @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  talhao     Talhao               @relation(fields: [empresaId, talhaoId], references: [empresaId, id])
+  safra      Safra                @relation(fields: [empresaId, safraId], references: [empresaId, id])
+  colhedor   Colhedor             @relation(fields: [empresaId, colhedorId], references: [empresaId, id])
+  turma      Turma?               @relation(fields: [empresaId, turmaId], references: [empresaId, id])
+  fechamento FechamentoPagamento? @relation(fields: [empresaId, fechamentoId], references: [empresaId, id])
+  origens    ApontamentoOrigem[]
+  cargas     CargaApontamento[]
+
+  @@unique([empresaId, id])
+  @@index([empresaId, fazendaId, data, status])
+  @@map("apontamento")
+}
+
+/// Cada registro vindo de um aparelho (UUID próprio) e quanto ele soma no apontamento (RN-19, RN-23).
+model ApontamentoOrigem {
+  id              String    @id @db.Uuid
+  empresaId       String    @map("empresa_id") @db.Uuid
+  apontamentoId   String    @map("apontamento_id") @db.Uuid
+  medidas         Decimal   @db.Decimal(14, 3)
+  dispositivoId   String?   @map("dispositivo_id")
+  criadoOfflineEm DateTime? @map("criado_offline_em") @db.Timestamptz(6)
+  recebidoEm      DateTime  @default(now()) @map("recebido_em") @db.Timestamptz(6)
+  alteradoEm      DateTime  @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+
+  apontamento Apontamento @relation(fields: [empresaId, apontamentoId], references: [empresaId, id])
+
+  @@index([empresaId, apontamentoId])
+  @@map("apontamento_origem")
+}
+
+enum TipoColheitaCarga {
+  MANUAL
+  SEMIMECANIZADA
+  MECANICA
+  VARIOS
+
+  @@map("tipo_colheita_carga")
+}
+
+/// O que sai do talhão para o pós-colheita (§6.2). Gera o movimento COLHEITA com 1 lote.
+model CargaColheita {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId         String            @map("empresa_id") @db.Uuid
+  data              DateTime          @db.Date
+  fazendaId         String            @map("fazenda_id") @db.Uuid
+  talhaoId          String            @map("talhao_id") @db.Uuid
+  safraId           String            @map("safra_id") @db.Uuid
+  tipoCafeId        String            @map("tipo_cafe_id") @db.Uuid
+  tipoColheita      TipoColheitaCarga @map("tipo_colheita")
+  tipoTransporte    String?           @map("tipo_transporte")
+  operadorMaquina   String?           @map("operador_maquina")
+  medidasMedidas    Decimal           @map("medidas_medidas") @db.Decimal(14, 3)
+  medidasApontadas  Decimal           @default(0) @map("medidas_apontadas") @db.Decimal(14, 3)
+  divergencia       Decimal           @default(0) @db.Decimal(14, 3)
+  divergenciaPerc   Decimal?          @map("divergencia_perc") @db.Decimal(9, 6)
+  alertaDivergencia Boolean           @default(false) @map("alerta_divergencia")
+  movimentoId       String            @map("movimento_id") @db.Uuid
+  criadoEm          DateTime          @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor         String?           @map("criado_por") @db.Uuid
+
+  fazenda      Fazenda            @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  talhao       Talhao             @relation(fields: [empresaId, talhaoId], references: [empresaId, id])
+  safra        Safra              @relation(fields: [empresaId, safraId], references: [empresaId, id])
+  movimento    Movimento          @relation(fields: [empresaId, movimentoId], references: [empresaId, id])
+  apontamentos CargaApontamento[]
+
+  @@unique([empresaId, movimentoId])
+  @@unique([empresaId, id])
+  @@index([empresaId, data])
+  @@map("carga_colheita")
+}
+
+model CargaApontamento {
+  empresaId     String @map("empresa_id") @db.Uuid
+  cargaId       String @map("carga_id") @db.Uuid
+  apontamentoId String @map("apontamento_id") @db.Uuid // uma carga ativa por apontamento: conferido no serviço
+
+  carga       CargaColheita @relation(fields: [empresaId, cargaId], references: [empresaId, id])
+  apontamento Apontamento   @relation(fields: [empresaId, apontamentoId], references: [empresaId, id])
+
+  @@id([cargaId, apontamentoId])
+  @@index([empresaId, apontamentoId])
+  @@map("carga_apontamento")
+}
+
+enum StatusFechamento {
+  ABERTO
+  FECHADO
+  PAGO
+  CANCELADO
+
+  @@map("status_fechamento")
+}
+
+/// Fechamento de pagamento de uma fazenda num período (§6.3). Períodos não se sobrepõem (RN-21).
+model FechamentoPagamento {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId          String           @map("empresa_id") @db.Uuid
+  numero             Int
+  fazendaId          String           @map("fazenda_id") @db.Uuid
+  periodoInicio      DateTime         @map("periodo_inicio") @db.Date
+  periodoFim         DateTime         @map("periodo_fim") @db.Date
+  status             StatusFechamento @default(ABERTO)
+  totalMedidas       Decimal          @default(0) @map("total_medidas") @db.Decimal(14, 3)
+  totalBruto         Decimal          @default(0) @map("total_bruto") @db.Decimal(14, 2)
+  totalDescontos     Decimal          @default(0) @map("total_descontos") @db.Decimal(14, 2)
+  totalLiquido       Decimal          @default(0) @map("total_liquido") @db.Decimal(14, 2)
+  fechadoPor         String?          @map("fechado_por") @db.Uuid
+  fechadoEm          DateTime?        @map("fechado_em") @db.Timestamptz(6)
+  pagoPor            String?          @map("pago_por") @db.Uuid
+  pagoEm             DateTime?        @map("pago_em") @db.Timestamptz(6)
+  motivoReabertura   String?          @map("motivo_reabertura")
+  motivoCancelamento String?          @map("motivo_cancelamento")
+  criadoEm           DateTime         @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor          String?          @map("criado_por") @db.Uuid
+  alteradoEm         DateTime         @default(now()) @updatedAt @map("alterado_em") @db.Timestamptz(6)
+  alteradoPor        String?          @map("alterado_por") @db.Uuid
+
+  fazenda      Fazenda              @relation(fields: [empresaId, fazendaId], references: [empresaId, id])
+  itens        FechamentoItem[]
+  apontamentos Apontamento[]
+  lancamentos  LancamentoColhedor[]
+
+  @@unique([empresaId, numero])
+  @@unique([empresaId, id])
+  @@map("fechamento_pagamento")
+}
+
+model FechamentoItem {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String  @map("empresa_id") @db.Uuid
+  fechamentoId  String  @map("fechamento_id") @db.Uuid
+  colhedorId    String  @map("colhedor_id") @db.Uuid
+  medidas       Decimal @db.Decimal(14, 3)
+  valorBruto    Decimal @map("valor_bruto") @db.Decimal(14, 2)
+  adiantamentos Decimal @default(0) @db.Decimal(14, 2)
+  descontos     Decimal @default(0) @db.Decimal(14, 2)
+  adicionais    Decimal @default(0) @db.Decimal(14, 2)
+  valorLiquido  Decimal @map("valor_liquido") @db.Decimal(14, 2)
+
+  fechamento FechamentoPagamento @relation(fields: [empresaId, fechamentoId], references: [empresaId, id])
+  colhedor   Colhedor            @relation(fields: [empresaId, colhedorId], references: [empresaId, id])
+
+  @@unique([fechamentoId, colhedorId])
+  @@map("fechamento_item")
+}
+
+enum TipoLancamentoColhedor {
+  ADIANTAMENTO
+  DESCONTO
+  ADICIONAL
+
+  @@map("tipo_lancamento_colhedor")
+}
+
+model LancamentoColhedor {
+  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId    String                 @map("empresa_id") @db.Uuid
+  colhedorId   String                 @map("colhedor_id") @db.Uuid
+  data         DateTime               @db.Date
+  tipo         TipoLancamentoColhedor
+  valor        Decimal                @db.Decimal(14, 2)
+  descricao    String?
+  fechamentoId String?                @map("fechamento_id") @db.Uuid
+  cancelado    Boolean                @default(false)
+  criadoEm     DateTime               @default(now()) @map("criado_em") @db.Timestamptz(6)
+  criadoPor    String?                @map("criado_por") @db.Uuid
+
+  colhedor   Colhedor             @relation(fields: [empresaId, colhedorId], references: [empresaId, id])
+  fechamento FechamentoPagamento? @relation(fields: [empresaId, fechamentoId], references: [empresaId, id])
+
+  @@index([empresaId, colhedorId])
+  @@map("lancamento_colhedor")
 }
