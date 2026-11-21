@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { ProtecaoMapa } from '@/componentes/mapa/protecao-mapa';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { FileUp, PenLine, Plus, Trash2 } from 'lucide-react';
@@ -86,17 +87,19 @@ export function GestaoTalhoes({ fazendaId, talhoes, podeEditar }: { fazendaId: s
     <div className="grid gap-4">
       {msg ? <Aviso tipo={msg.tipo}>{msg.texto}</Aviso> : null}
       <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-        <MapaTalhoes
-          talhoes={noMapa}
-          destaque={destaque}
-          desenhando={desenhando}
-          aoCancelarDesenho={() => setDesenhando(false)}
-          aoConcluirDesenho={(p: Polygon) => {
-            setGeoNova({ geometria: p, origem: 'desenho' });
-            setDesenhando(false);
-            setMsg({ tipo: 'ok', texto: 'Polígono desenhado. Salve o talhão para gravar e calcular a área.' });
-          }}
-        />
+        <ProtecaoMapa>
+          <MapaTalhoes
+            talhoes={noMapa}
+            destaque={destaque}
+            desenhando={desenhando}
+            aoCancelarDesenho={() => setDesenhando(false)}
+            aoConcluirDesenho={(p: Polygon) => {
+              setGeoNova({ geometria: p, origem: 'desenho' });
+              setDesenhando(false);
+              setMsg({ tipo: 'ok', texto: 'Polígono desenhado. Salve o talhão para gravar e calcular a área.' });
+            }}
+          />
+        </ProtecaoMapa>
         <div className="grid content-start gap-3">
           {editando ? (
             <form onSubmit={salvar} className="sombra grid gap-3 rounded-xl border border-linha bg-superficie p-4" key={atual?.id ?? 'novo'}>
