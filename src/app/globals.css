@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* Padrão visual do §12: paleta Verde cafezal, igual ao sistema da exportadora. */
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-fundo: var(--fundo);
+  --color-superficie: var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-tinta: var(--tinta);
+  --color-tinta-2: var(--tinta-2);
+  --color-linha: var(--linha);
+  --color-destaque: var(--destaque);
+  --color-destaque-tinta: var(--destaque-tinta);
+  --color-destaque-suave: var(--destaque-suave);
+  --color-ouro: var(--ouro);
+  --color-menu: var(--menu);
+  --color-menu-tinta: var(--menu-tinta);
+  --color-menu-sub: var(--menu-sub);
+  --color-menu-ouro: var(--menu-ouro);
+  --color-ok: var(--ok);
+  --color-ok-fundo: var(--ok-fundo);
+  --color-aviso: var(--aviso);
+  --color-aviso-fundo: var(--aviso-fundo);
+  --color-erro: var(--erro);
+  --color-erro-fundo: var(--erro-fundo);
+}
+
+:root {
+  --fundo: #f2f4ef; --superficie: #ffffff; --superficie-2: #f7f9f4; --tinta: #18261d; --tinta-2: #5e6e63; --linha: #dfe5dc;
+  --destaque: #2e6b4c; --destaque-tinta: #ffffff; --destaque-suave: #e1efe7; --ouro: #b5822a;
+  --menu: #132a1f; --menu-tinta: #eef5f0; --menu-sub: #9fbaa9; --menu-ouro: #e2ac45;
+  --ok: #1f6b3a; --ok-fundo: #e2f1e5; --aviso: #7a4d04; --aviso-fundo: #fdf3dc; --erro: #8e2416; --erro-fundo: #fce8e5;
+  --sombra: 0 1px 2px rgba(19, 42, 31, 0.06), 0 2px 8px rgba(19, 42, 31, 0.04);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #0d1612; --superficie: #14211b; --superficie-2: #182822; --tinta: #e6efe9; --tinta-2: #93a99c; --linha: #22362c;
+    --destaque: #6cbf93; --destaque-tinta: #0b1a13; --destaque-suave: #17352a; --ouro: #e2ac45;
+    --menu: #0a1611; --menu-tinta: #e6efe9; --menu-sub: #8fa898; --menu-ouro: #e2ac45;
+    --ok: #9fdcb5; --ok-fundo: #12382a; --aviso: #f2cf86; --aviso-fundo: #3a2c0e; --erro: #f4b2a6; --erro-fundo: #3e1d17;
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+}
+
+html, body { background: var(--fundo); color: var(--tinta); }
+body { font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
+.sombra { box-shadow: var(--sombra); }
+.rotulo-secao { font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; }
+:focus-visible { outline: 2px solid var(--destaque); outline-offset: 2px; }
