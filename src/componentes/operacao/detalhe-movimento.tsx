@@ -68,7 +68,7 @@ export function DetalheMovimento({ m, disponiveis, opcoes, podeLancar, podeEstor
     <>
       <div className="flex flex-wrap items-center gap-2.5">
         <SeloSituacao status={m.status} />
-        {!normal ? <span className="text-[13px] font-medium text-ouro">Ajuste de inventário</span> : null}
+        {!normal ? <span className="text-[13px] font-medium text-ouro-texto">Ajuste de inventário</span> : null}
         <span className="text-[13px] text-tinta-2">{[m.fazenda !== 'MIX' ? `Fazenda ${m.fazenda}` : 'Várias fazendas (MIX)', `Safra ${m.safra}`, m.local ? `Local ${m.local.codigo}` : null, m.talhao ? `Talhão ${m.talhao}` : null].filter(Boolean).join(' · ')}</span>
         <div className="ml-auto flex flex-wrap items-start gap-2 print:hidden">
           <Link href={voltar} className={estiloBotao({ variante: 'secundario' })}>Voltar</Link>
@@ -155,7 +155,7 @@ function Entradas({ m, disponiveis, podeLancar, pendente, rodar }: { m: Mov; dis
           <tbody>
             {m.entradas.map((e) => (
               <tr key={e.id} className="border-t border-linha">
-                <td className="px-3 py-2.5 font-mono"><Link className="text-destaque hover:underline" href={`/rastreabilidade/lote/${e.loteId}`}>{e.codigo}</Link>{e.reserva !== 'NENHUMA' ? <div className="text-[11px] text-ouro">da reserva de {e.reserva.toLowerCase()}</div> : null}</td>
+                <td className="px-3 py-2.5 font-mono"><Link className="text-destaque hover:underline" href={`/rastreabilidade/lote/${e.loteId}`}>{e.codigo}</Link>{e.reserva !== 'NENHUMA' ? <div className="text-[11px] text-ouro-texto">da reserva de {e.reserva.toLowerCase()}</div> : null}</td>
                 <td className="px-3 py-2.5">{e.etapa}</td>
                 <td className="px-3 py-2.5">{e.tipo ?? '—'}</td>
                 <td className="px-3 py-2.5">{e.local ?? '—'}</td>

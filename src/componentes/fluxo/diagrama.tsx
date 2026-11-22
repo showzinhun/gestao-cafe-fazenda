@@ -26,7 +26,7 @@ export function DiagramaFluxo({ etapas, transicoes }: { etapas: { id: string; no
           const alt = Math.min(85, 18 + d * 0.18);
           const y0 = frente ? topo - R : topo + R;
           const cy = frente ? y0 - alt : y0 + alt;
-          return <path key={i} d={`M${a + (frente ? 6 : -6)},${y0} Q${(a + b) / 2},${cy} ${b + (frente ? -6 : 6)},${y0}`} fill="none" stroke="currentColor" strokeWidth={1.6} className={frente ? 'text-destaque' : 'text-ouro'} markerEnd="url(#seta)" opacity={0.85} />;
+          return <path key={i} d={`M${a + (frente ? 6 : -6)},${y0} Q${(a + b) / 2},${cy} ${b + (frente ? -6 : 6)},${y0}`} fill="none" stroke="currentColor" strokeWidth={1.6} className={frente ? 'text-destaque' : 'text-ouro-texto'} markerEnd="url(#seta)" opacity={0.85} />;
         })}
         {etapas.map((e) => (
           <g key={e.id} transform={`translate(${x.get(e.id)},${topo})`}>
