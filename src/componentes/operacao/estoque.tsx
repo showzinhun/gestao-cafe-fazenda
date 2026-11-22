@@ -19,7 +19,7 @@ type Linha = {
   id: string; codigo: string; etapa: string; etapaId: string; safra: string; fazenda: string; tipo: string | null; peneira: string | null; unidade: string; data: string;
   saldo: string; livre: string; reservado: string; reservas: string[]; certificados: string[]; locais: { id: string; codigo: string; quantidade: string }[]; eudr: string;
 };
-type Dados = { lotes: Linha[]; totais: { kg: { saldo: string; livre: string; reservado: string }; medidas: { saldo: string } } };
+type Dados = { lotes: Linha[]; quantidade?: number; totais: { kg: { saldo: string; livre: string; reservado: string }; medidas: { saldo: string } } };
 
 const FILTROS: { nome: string; rotulo: string; fonte: string; vazio: string }[] = [
   { nome: 'etapa', rotulo: 'Etapa', fonte: 'etapas', vazio: 'Todo o estoque' },
@@ -79,7 +79,7 @@ export function TelaEstoque({ dados, filtro, opcoes, servicos, podeLancar, contr
       </div>
       {msg ? <Aviso tipo={msg.tipo}>{msg.texto}</Aviso> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13.5px] text-tinta-2">{sel.length ? <>{sel.length} lote(s) selecionado(s) · <b className="font-mono text-tinta">{num(kgSel.toString())}</b> kg livres</> : `${dados.lotes.length} lote(s)`}</span>
+        <span className="text-[13.5px] text-tinta-2">{sel.length ? <>{sel.length} lote(s) selecionado(s) · <b className="font-mono text-tinta">{num(kgSel.toString())}</b> kg livres</> : `${dados.quantidade ?? dados.lotes.length} lote(s)`}</span>
         <div className="ml-auto flex flex-wrap gap-2">
           {podeLancar ? servicos.map((s) => (
             <Botao key={s.id} disabled={!sel.length} onClick={() => router.push(`/etapas/${s.id}/novo?lotes=${sel.join(',')}`)}>Enviar para {s.nome}</Botao>

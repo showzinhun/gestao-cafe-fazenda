@@ -5,15 +5,18 @@ import { listarEmbarques } from '@/servicos/embarques';
 import { TituloPagina } from '@/componentes/titulo-pagina';
 import { Selo } from '@/componentes/ui/selo';
 import { num } from '@/lib/formatos';
+import { Paginacao } from '@/componentes/ui/paginacao';
+import { cortar, numeroPagina } from '@/servicos/paginacao';
 
 export const metadata: Metadata = { title: 'Embarques' };
 export const dynamic = 'force-dynamic';
 const ETAPA: Record<string, 'ok' | 'aviso' | 'erro' | 'neutro'> = { Criado: 'neutro', Programado: 'aviso', Carregado: 'aviso', Finalizado: 'ok', Estornado: 'erro' };
 
 /** Embarques (§9.4): nascem do contrato e passam por programação → carregamento → finalização. */
-export default async function PaginaEmbarques() {
+export default async function PaginaEmbarques({ searchParams }: { searchParams: Promise<{ pagina?: string }> }) {
   const ctx = await exigirContexto();
-  const lista = await listarEmbarques(ctx);
+  const p = numeroPagina((await searchParams).pagina);
+  const { itens: lista, paginacao } = cortar(await listarEmbarques(ctx, p), p);
   return (
     <>
       <TituloPagina grupo="Comercial" titulo="Embarques" />
@@ -40,6 +43,7 @@ export default async function PaginaEmbarques() {
             </tbody>
           </table>
         </div>
+        <Paginacao base="/embarques" pagina={paginacao.pagina} temMais={paginacao.temMais} />
       </div>
     </>
   );
