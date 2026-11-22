@@ -111,6 +111,28 @@ Usuários fictícios novos no seed: `apontador@alfa.exemplo` (APONTADOR, fazenda
 - **Limite de quebra no serviço (RN-31)**: configurável por tipo em `empresa.configuracoes.limite_quebra_servico` (ex.: `{"CATACAO": "0.05"}`).
 - **Estoque**: coluna e filtro "apto EUDR".
 
+## Início, plataforma e revisão (Fase 8)
+
+- **Início** (`/inicio`): alertas não lidos, cartões (kg livres e reservados, secagem no ponto, contratos com prazo próximo, medidas apontadas hoje) e o funil de saldo por etapa.
+- **Plataforma** (`/plataforma`, só SUPERADMIN): criar empresa com modelo de fluxo e administrador, mudar o plano, suspender (com motivo) e reativar. Suspender corta o acesso de todos os usuários na hora; nada é apagado.
+  - Roda com o papel de banco `cafe_plataforma`, que passa por fora da RLS mas só alcança empresas, usuários, vínculos e cadastros-base: a plataforma não vê dados operacionais.
+  - O SUPERADMIN só é concedido pelo dono do banco: `DIRECT_URL=... npm run db:superadmin -- email@dominio` (o seed cria `plataforma@exemplo.com`).
+- **Paginação** de 50 itens nas listas de movimentos, estoque, contratos, embarques e alertas (`?pagina=N`, também em `GET /api/lotes`).
+- **Índices** novos para lotes por movimento e por situação, reservas por movimento e por contrato, movimentos e embarques por contrato.
+- **Acessibilidade**: `tests/e2e/verificacao-acessibilidade.spec.ts` roda o axe (WCAG 2.1 A/AA) nas telas principais e falha em violação séria ou crítica.
+
+### Cenário §15 de ponta a ponta (e2e)
+
+| Passos | Arquivo |
+|---|---|
+| 1, 2 e 9 | `offline-campo.spec.ts` (celular, sem sinal) |
+| 3 a 8 | `cenario-3-8.spec.ts` |
+| 5 (secagem) | `secagem-campo.spec.ts` (celular) |
+| 10, 11, 12, 14, 15 e 16 | `comercial.spec.ts` |
+| 13, 17 e 18 | `passos-13-17-18.spec.ts` |
+
+Os arquivos dependem da ordem (alfabética no desktop; o celular roda depois): cada um usa os lotes deixados pelos anteriores.
+
 ## Testes
 
 ```bash

@@ -10,16 +10,20 @@ import { Indicador } from '@/componentes/ui/cartao';
 import { SeloContrato } from '@/componentes/comercial/selo';
 import { num, preco } from '@/lib/formatos';
 import { formatarNumero } from '@/lib/formatacao';
+import { Paginacao } from '@/componentes/ui/paginacao';
+import { cortar, numeroPagina } from '@/servicos/paginacao';
 
 export const metadata: Metadata = { title: 'Contratos' };
 export const dynamic = 'force-dynamic';
 const data = (d: string | null) => (d ? d.split('-').reverse().join('/') : '—');
 
 /** Painel comercial (§9.6) e lista de contratos. */
-export default async function PaginaContratos({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function PaginaContratos({ searchParams }: { searchParams: Promise<{ status?: string; pagina?: string }> }) {
   const ctx = await exigirContexto();
-  const { status } = await searchParams;
-  const [contratos, painel] = await Promise.all([listarContratos(ctx, { status }), painelComercial(ctx)]);
+  const { status, pagina } = await searchParams;
+  const p = numeroPagina(pagina);
+  const [lista, painel] = await Promise.all([listarContratos(ctx, { status, pagina: p }), painelComercial(ctx)]);
+  const { itens: contratos, paginacao } = cortar(lista, p);
   const pode = (ctx.permissoes ?? permissoesDoPerfil(ctx.perfil)).includes('comercial.editar');
   return (
     <>
@@ -90,6 +94,7 @@ export default async function PaginaContratos({ searchParams }: { searchParams: 
             </tbody>
           </table>
         </div>
+        <Paginacao base="/contratos" params={{ status }} pagina={paginacao.pagina} temMais={paginacao.temMais} />
       </div>
     </>
   );

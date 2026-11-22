@@ -16,7 +16,7 @@ export default async function PaginaLogin() {
           <Logo />
         </div>
         <div>
-          <p className="rotulo-secao text-ouro">Gestão do Café · Fazenda</p>
+          <p className="rotulo-secao text-ouro-texto">Gestão do Café · Fazenda</p>
           <h1 className="mt-1 font-display text-[22px] font-semibold">Entrar no sistema</h1>
           <p className="mt-1 text-tinta-2">Use o e-mail e a senha cadastrados pelo administrador da sua empresa.</p>
         </div>

@@ -21,7 +21,9 @@ try {
   const acao = existe.length ? 'ALTER' : 'CREATE';
   await db.$executeRawUnsafe(`${acao} ROLE ${login} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD ${lit(senha)}`);
   await db.$executeRawUnsafe(`GRANT cafe_app TO ${login}`);
-  console.log(`Login ${login} pronto (membro de cafe_app).`);
+  // Plataforma (SUPERADMIN): sem herança; o serviço da plataforma faz SET LOCAL ROLE depois de conferir o usuário.
+  await db.$executeRawUnsafe(`GRANT cafe_plataforma TO ${login} WITH INHERIT FALSE, SET TRUE`);
+  console.log(`Login ${login} pronto (membro de cafe_app; cafe_plataforma só por SET ROLE).`);
 } finally {
   await db.$disconnect();
 }

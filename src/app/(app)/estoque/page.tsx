@@ -9,10 +9,12 @@ import { permissoesDoPerfil } from '@/dominio/permissoes';
 import { TituloPagina } from '@/componentes/titulo-pagina';
 import { estiloBotao } from '@/componentes/ui/botao';
 import { TelaEstoque } from '@/componentes/operacao/estoque';
+import { Paginacao } from '@/componentes/ui/paginacao';
+import { numeroPagina } from '@/servicos/paginacao';
 
 export const metadata: Metadata = { title: 'Estoque' };
 
-type Busca = { etapa?: string; safra?: string; fazenda?: string; peneira?: string; certificado?: string; local?: string; situacao?: string; q?: string; eudr?: string };
+type Busca = { etapa?: string; safra?: string; fazenda?: string; peneira?: string; certificado?: string; local?: string; situacao?: string; q?: string; eudr?: string; pagina?: string };
 
 export default async function PaginaEstoque({ searchParams }: { searchParams: Promise<Busca> }) {
   const ctx = await exigirContexto();
@@ -25,7 +27,7 @@ export default async function PaginaEstoque({ searchParams }: { searchParams: Pr
   const perm = ctx.permissoes ?? permissoesDoPerfil(ctx.perfil);
   const podeReservar = perm.includes('comercial.editar');
   const [dados, opcoes, etapas, contratos] = await Promise.all([
-    consultarEstoque(ctx, filtro),
+    consultarEstoque(ctx, filtro, numeroPagina(p.pagina)),
     listarOpcoes(ctx, ['safras', 'fazendas', 'peneiras', 'certificados', 'locais']),
     resumoEtapas(ctx),
     podeReservar ? listarContratos(ctx) : Promise.resolve([]),
@@ -49,6 +51,7 @@ export default async function PaginaEstoque({ searchParams }: { searchParams: Pr
           contratos={abertos}
           podeReservar={podeReservar}
         />
+        <Paginacao base="/estoque" params={p} pagina={dados.paginacao.pagina} temMais={dados.paginacao.temMais} />
       </div>
     </>
   );

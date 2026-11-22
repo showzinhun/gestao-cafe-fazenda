@@ -54,7 +54,7 @@ export default async function PaginaSecagem() {
                       <b className="font-display text-[17px]">{c.local}</b>
                       <span className="text-[12px] text-tinta-2">{c.etapa}</span>
                     </span>
-                    <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold', c.situacao === 'LIVRE' ? 'bg-linha text-tinta-2' : c.situacao === 'NO_PONTO' ? 'bg-ok text-white' : c.situacao === 'ATENCAO' ? 'bg-aviso text-white' : 'bg-destaque text-destaque-tinta')}>{cor.rotulo}</span>
+                    <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold', c.situacao === 'LIVRE' ? 'bg-linha text-tinta' : c.situacao === 'NO_PONTO' ? 'bg-ok text-white' : c.situacao === 'ATENCAO' ? 'bg-aviso text-white' : 'bg-destaque text-destaque-tinta')}>{cor.rotulo}</span>
                   </header>
                   {c.ocupacao != null ? (
                     <div className="grid gap-1">

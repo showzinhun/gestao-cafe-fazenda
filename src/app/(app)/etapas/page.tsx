@@ -16,7 +16,7 @@ export default async function PaginaEtapas() {
     <>
       <TituloPagina grupo="Operação" titulo="Etapas" />
       <div className="grid gap-4 px-4 py-6 lg:px-6">
-        <p className="text-tinta-2">Cada etapa recebe lotes das anteriores (conforme o fluxo) e gera novos lotes. A colheita fica em <Link className="text-destaque hover:underline" href="/colheita">Colheita</Link>.</p>
+        <p className="text-tinta-2">Cada etapa recebe lotes das anteriores (conforme o fluxo) e gera novos lotes. A colheita fica em <Link className="text-destaque underline underline-offset-2" href="/colheita">Colheita</Link>.</p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
           {etapas.map((e) => (
             <Link key={e.id} href={`/etapas/${e.id}`} className="sombra group grid gap-3 rounded-xl border border-linha bg-superficie p-4 hover:border-destaque">

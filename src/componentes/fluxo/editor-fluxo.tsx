@@ -58,7 +58,7 @@ export function EditorFluxo({ etapas, transicoes, pendencias, tiposCafe, fazenda
       <DiagramaFluxo etapas={ativas} transicoes={daEmpresa} />
       <div className="flex flex-wrap gap-3 text-[12.5px] text-tinta-2">
         <span><span className="text-destaque">━</span> segue para a frente</span>
-        <span><span className="text-ouro">━</span> volta (ex.: secador → terreiro)</span>
+        <span><span className="text-ouro-texto">━</span> volta (ex.: secador → terreiro)</span>
         {CLASSES.map((c) => <span key={c}>· {NOME_CLASSE[c]}</span>)}
       </div>
       {pendencias.length ? (

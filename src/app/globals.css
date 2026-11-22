@@ -16,6 +16,7 @@
   --color-destaque-tinta: var(--destaque-tinta);
   --color-destaque-suave: var(--destaque-suave);
   --color-ouro: var(--ouro);
+  --color-ouro-texto: var(--ouro-texto);
   --color-menu: var(--menu);
   --color-menu-tinta: var(--menu-tinta);
   --color-menu-sub: var(--menu-sub);
@@ -31,6 +32,8 @@
 :root {
   --fundo: #f2f4ef; --superficie: #ffffff; --superficie-2: #f7f9f4; --tinta: #18261d; --tinta-2: #5e6e63; --linha: #dfe5dc;
   --destaque: #2e6b4c; --destaque-tinta: #ffffff; --destaque-suave: #e1efe7; --ouro: #b5822a;
+  /* Dourado para letras: o #b5822a fica abaixo de 4,5:1 em fundo claro (WCAG AA). */
+  --ouro-texto: #845a12;
   --menu: #132a1f; --menu-tinta: #eef5f0; --menu-sub: #9fbaa9; --menu-ouro: #e2ac45;
   --ok: #1f6b3a; --ok-fundo: #e2f1e5; --aviso: #7a4d04; --aviso-fundo: #fdf3dc; --erro: #8e2416; --erro-fundo: #fce8e5;
   --sombra: 0 1px 2px rgba(19, 42, 31, 0.06), 0 2px 8px rgba(19, 42, 31, 0.04);
@@ -39,7 +42,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --fundo: #0d1612; --superficie: #14211b; --superficie-2: #182822; --tinta: #e6efe9; --tinta-2: #93a99c; --linha: #22362c;
-    --destaque: #6cbf93; --destaque-tinta: #0b1a13; --destaque-suave: #17352a; --ouro: #e2ac45;
+    --destaque: #6cbf93; --destaque-tinta: #0b1a13; --destaque-suave: #17352a; --ouro: #e2ac45; --ouro-texto: #e2ac45;
     --menu: #0a1611; --menu-tinta: #e6efe9; --menu-sub: #8fa898; --menu-ouro: #e2ac45;
     --ok: #9fdcb5; --ok-fundo: #12382a; --aviso: #f2cf86; --aviso-fundo: #3a2c0e; --erro: #f4b2a6; --erro-fundo: #3e1d17;
     --sombra: 0 1px 2px rgba(0, 0, 0, 0.3);

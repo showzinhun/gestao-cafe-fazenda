@@ -11,6 +11,8 @@ import { estiloBotao } from '@/componentes/ui/botao';
 import { SeloSituacao } from '@/componentes/operacao/comum';
 import { dataHora, num, pct } from '@/lib/formatos';
 import { cn } from '@/lib/cn';
+import { Paginacao } from '@/componentes/ui/paginacao';
+import { numeroPagina } from '@/servicos/paginacao';
 
 export const metadata: Metadata = { title: 'Movimentos da etapa' };
 
@@ -21,18 +23,19 @@ const ABAS = [
   { id: 'todos', rotulo: 'Todos' },
 ];
 
-export default async function PaginaEtapa({ params, searchParams }: { params: Promise<{ etapaId: string }>; searchParams: Promise<{ status?: string; q?: string }> }) {
+export default async function PaginaEtapa({ params, searchParams }: { params: Promise<{ etapaId: string }>; searchParams: Promise<{ status?: string; q?: string; pagina?: string }> }) {
   const ctx = await exigirContexto();
   const { etapaId } = await params;
-  const { status = 'ABERTO', q } = await searchParams;
+  const { status = 'ABERTO', q, pagina } = await searchParams;
+  const p = numeroPagina(pagina);
   let dados;
   try {
-    dados = await listarMovimentos(ctx, etapaId, { status: status === 'todos' ? undefined : status, busca: q });
+    dados = await listarMovimentos(ctx, etapaId, { status: status === 'todos' ? undefined : status, busca: q, pagina: p });
   } catch (e) {
     if (e instanceof ErroNaoEncontrado) notFound();
     throw e;
   }
-  const { etapa, movimentos } = dados;
+  const { etapa, movimentos, paginacao } = dados;
   const pode = (ctx.permissoes ?? permissoesDoPerfil(ctx.perfil)).includes('movimento.lancar');
   const estoque = etapa.classe === 'ESTOQUE';
   return (
@@ -61,7 +64,7 @@ export default async function PaginaEtapa({ params, searchParams }: { params: Pr
             <tbody>
               {movimentos.length ? movimentos.map((m) => (
                 <tr key={m.id} className="border-t border-linha align-top">
-                  <td className="px-3 py-2.5 font-mono"><Link href={`/movimentos/${m.id}`} className="font-semibold text-destaque hover:underline">{etapa.prefixo}#{m.numero}</Link>{m.natureza !== 'NORMAL' ? <div className="text-[11px] text-ouro">ajuste de inventário</div> : null}</td>
+                  <td className="px-3 py-2.5 font-mono"><Link href={`/movimentos/${m.id}`} className="font-semibold text-destaque hover:underline">{etapa.prefixo}#{m.numero}</Link>{m.natureza !== 'NORMAL' ? <div className="text-[11px] text-ouro-texto">ajuste de inventário</div> : null}</td>
                   <td className="px-3 py-2.5">{dataHora(m.dataEntrada)}</td>
                   <td className="px-3 py-2.5">{m.fazenda}</td>
                   <td className="px-3 py-2.5">{m.local ?? '—'}</td>
@@ -77,6 +80,7 @@ export default async function PaginaEtapa({ params, searchParams }: { params: Pr
             </tbody>
           </table>
         </div>
+        <Paginacao base={`/etapas/${etapaId}`} params={{ status, q }} pagina={paginacao.pagina} temMais={paginacao.temMais} />
       </div>
     </>
   );

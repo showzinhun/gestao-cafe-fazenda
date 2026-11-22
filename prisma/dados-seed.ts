@@ -42,6 +42,8 @@ export const SEED = {
     { id: 'c3a1d2e4-0000-4000-8000-00000000a003', nome: 'Paulo Apontador', email: 'apontador@alfa.exemplo', vinculos: [['alfa', 'APONTADOR']] },
     { id: 'c3a1d2e4-0000-4000-8000-00000000a004', nome: 'Fátima Financeiro', email: 'financeiro@alfa.exemplo', vinculos: [['alfa', 'FINANCEIRO']] },
   ],
+  /** Administração da plataforma (SUPERADMIN, §3.2): sem vínculo com empresas; não vê dados operacionais. */
+  plataforma: { id: 'c3a1d2e4-0000-4000-8000-00000000f001', nome: 'Paula Plataforma (fictícia)', email: 'plataforma@exemplo.com' },
   /** Fazendas liberadas para quem não é administrador (RN-04). */
   acessos: [
     ['c3a1d2e4-0000-4000-8000-00000000a003', '7f1e0c2a-5d3b-4e6f-8a90-0000000000a1'],
