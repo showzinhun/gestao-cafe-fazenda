@@ -112,7 +112,10 @@ export async function criarEmpresaPlataforma(usuarioId: string, entrada: z.input
   if (d.cnpj && !cnpjValido(d.cnpj)) throw new ErroValidacao('CNPJ inválido.', 'cnpj');
   if (d.adminSenha && d.adminSenha.length < 8) throw new ErroValidacao('A senha inicial precisa de pelo menos 8 caracteres.', 'adminSenha');
   return comPlataforma(usuarioId, async (tx) => {
-    if (await tx.empresa.findFirst({ where: { nome: { equals: d.nome, mode: 'insensitive' } } })) throw new ErroValidacao('Já existe uma empresa com esse nome.', 'nome');
+    // Comparação em pt-BR (maiúsculas e acentos), independente do locale do banco.
+    const chave = (t: string) => t.normalize('NFC').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim();
+    const nomes = await tx.empresa.findMany({ select: { nome: true } });
+    if (nomes.some((e) => chave(e.nome) === chave(d.nome))) throw new ErroValidacao('Já existe uma empresa com esse nome.', 'nome');
     const e = await criarEmpresaTx(tx, { nome: d.nome, cnpj: d.cnpj ? formatarCpfCnpj(d.cnpj) : null, modelo: d.modelo, plano: d.plano, admin: { nome: d.adminNome, email: d.adminEmail, senha: d.adminSenha ?? undefined } }, usuarioId);
     return { id: e.id, nome: e.nome };
   });

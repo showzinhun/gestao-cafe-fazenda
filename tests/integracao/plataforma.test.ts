@@ -52,13 +52,13 @@ describe('plataforma (SUPERADMIN)', () => {
   });
 
   it('cria empresa com modelo de fluxo e administrador; suspender corta o acesso na hora; reativar devolve', async () => {
-    await expect(criarEmpresaPlataforma(SUPER, { nome: 'Gama Café (fictícia)', cnpj: '11.111.111/1111-11', modelo: 'SIMPLIFICADO', adminNome: 'Gil Gama', adminEmail: 'admin@gama.exemplo', adminSenha: 'senha-forte-1' })).rejects.toBeInstanceOf(ErroValidacao);
-    const g = await criarEmpresaPlataforma(SUPER, { nome: 'Gama Café (fictícia)', cnpj: '12.345.678/0001-95', modelo: 'SIMPLIFICADO', plano: 'PROFISSIONAL', adminNome: 'Gil Gama', adminEmail: 'admin@gama.exemplo', adminSenha: 'senha-forte-1' });
-    const admin = (await dono.usuario.findUniqueOrThrow({ where: { email: 'admin@gama.exemplo' } })).id;
-    expect((await listarEmpresasDoUsuario(admin)).map((e) => [e.nome, e.perfil])).toEqual([['Gama Café (fictícia)', 'ADMIN_EMPRESA']]);
-    const ctxGama: Contexto = { empresaId: g.id, usuarioId: admin, perfil: 'ADMIN_EMPRESA' };
-    expect((await obterFluxo(ctxGama)).etapas.length).toBeGreaterThan(0);
-    await expect(criarEmpresaPlataforma(SUPER, { nome: 'gama café (fictícia)', modelo: 'SIMPLIFICADO', adminNome: 'Outro', adminEmail: 'outro@gama.exemplo', adminSenha: 'senha-forte-2' })).rejects.toThrow(/Já existe/);
+    await expect(criarEmpresaPlataforma(SUPER, { nome: 'Ômega Café (fictícia)', cnpj: '11.111.111/1111-11', modelo: 'SIMPLIFICADO', adminNome: 'Olga Ômega', adminEmail: 'admin@omega.exemplo', adminSenha: 'senha-forte-1' })).rejects.toBeInstanceOf(ErroValidacao);
+    const g = await criarEmpresaPlataforma(SUPER, { nome: 'Ômega Café (fictícia)', cnpj: '12.345.678/0001-95', modelo: 'SIMPLIFICADO', plano: 'PROFISSIONAL', adminNome: 'Olga Ômega', adminEmail: 'admin@omega.exemplo', adminSenha: 'senha-forte-1' });
+    const admin = (await dono.usuario.findUniqueOrThrow({ where: { email: 'admin@omega.exemplo' } })).id;
+    expect((await listarEmpresasDoUsuario(admin)).map((e) => [e.nome, e.perfil])).toEqual([['Ômega Café (fictícia)', 'ADMIN_EMPRESA']]);
+    const ctxOmega: Contexto = { empresaId: g.id, usuarioId: admin, perfil: 'ADMIN_EMPRESA' };
+    expect((await obterFluxo(ctxOmega)).etapas.length).toBeGreaterThan(0);
+    await expect(criarEmpresaPlataforma(SUPER, { nome: 'ômega café (fictícia)', modelo: 'SIMPLIFICADO', adminNome: 'Outro', adminEmail: 'outro@omega.exemplo', adminSenha: 'senha-forte-2' })).rejects.toThrow(/Já existe/);
 
     await expect(alterarStatusEmpresa(SUPER, g.id, 'SUSPENSA', '')).rejects.toBeInstanceOf(ErroValidacao);
     await alterarStatusEmpresa(SUPER, g.id, 'SUSPENSA', 'Contrato encerrado (teste)');
