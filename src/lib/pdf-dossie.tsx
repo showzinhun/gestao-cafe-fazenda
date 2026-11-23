@@ -45,7 +45,7 @@ function Dossie({ empresa, d, versao, congelado }: { empresa: string; d: Conteud
 
         <Text style={e.secao}>Certificados das fazendas na data do embarque</Text>
         {d.certificados.length ? d.certificados.map((c, i) => (
-          <Text key={i}>{c.fazenda} · {c.certificado}{c.numero ? ` nº ${c.numero}` : ''} · validade até {data(c.validade_fim)} · <Text style={c.valido ? e.ok : e.erro}>{c.valido ? 'válido' : 'não válido'}</Text></Text>
+          <Text key={i}>{c.fazenda} · {c.certificado}{c.numero ? ` nº ${c.numero}` : ''} · validade até {data(c.validade_fim)} · <Text style={c.valido ? e.ok : e.erro}>{c.valido ? 'válido' : c.parcial ? 'parcial (não herdado pelos lotes)' : 'não válido'}</Text></Text>
         )) : <Text>—</Text>}
 
         <Text style={e.secao}>Cadeia de movimentos</Text>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { exigirContexto } from '@/lib/contexto';
-import { listar, listarOpcoes, obter } from '@/servicos/cadastros';
+import { listar, obter } from '@/servicos/cadastros';
 import { listarCertificadosFazenda } from '@/servicos/conformidade';
 import { CertificadosFazenda } from '@/componentes/conformidade/certificados-fazenda';
 import { ErroNaoEncontrado } from '@/dominio/erros';
@@ -25,7 +25,8 @@ export default async function Fazenda({ params }: { params: Promise<{ id: string
     throw e;
   }
   const talhoes = JSON.parse(JSON.stringify(await listar(ctx, 'talhoes', { incluirInativos: true, filtro: { fazendaId: id } }))) as Talhao[];
-  const [certs, opcoes] = await Promise.all([listarCertificadosFazenda(ctx, id), listarOpcoes(ctx, ['certificados'])]);
+  const [certs, catalogo] = await Promise.all([listarCertificadosFazenda(ctx, id), listar(ctx, 'certificados') as Promise<{ id: string; codigo: string; nome: string }[]>]);
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   const ativos = talhoes.filter((t) => t.ativo);
   const total = (k: 'areaHaInformada' | 'areaHaCalculada') => ativos.reduce((a, t) => a + Number(t[k] ?? 0), 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
   const semGeo = ativos.filter((t) => !t.geometriaTipo).length;
@@ -50,7 +51,7 @@ export default async function Fazenda({ params }: { params: Promise<{ id: string
           <Dado r="Inscrição estadual" v={(f.ie as string) || '—'} />
         </Cartao>
         <GestaoTalhoes fazendaId={id} talhoes={talhoes} podeEditar={podeEditar} />
-        <CertificadosFazenda fazendaId={id} linhas={JSON.parse(JSON.stringify(certs))} certificados={opcoes.certificados ?? []} podeEditar={podeEditar} />
+        <CertificadosFazenda fazendaId={id} linhas={JSON.parse(JSON.stringify(certs))} catalogo={catalogo.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }))} podeEditar={podeEditar} hoje={hoje} />
       </div>
     </>
   );

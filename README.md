@@ -107,7 +107,7 @@ Usuários fictícios novos no seed: `apontador@alfa.exemplo` (APONTADOR, fazenda
 
 ## Certificações, EUDR e dossiê (Fase 7)
 
-- **Certificados por fazenda** (na página da fazenda): número, validade e PDF. Alertas a 60, 30 e 7 dias do fim. Suspender pede motivo. Um lote só herda o certificado se todas as fazendas da composição o tiverem válido (RN-08).
+- **Certificados por fazenda** (na página da fazenda): marque de uma vez os que ela possui (RFA, AAA, 4C, UTZ, C.A.F.E. Practices, TAG Cerrado, Orgânico...). Cada um tem **ID opcional**, validade, PDF e a marca **parcial** (só parte da fazenda: fica registrada, mas não passa para os lotes). Dá para corrigir depois. A lista de fazendas mostra a certificação no formato "RFA + AAA", "UTZ (parcial)" ou "Sem certificado". Alertas a 60, 30 e 7 dias do fim. Suspender pede motivo. Um lote só herda o certificado se todas as fazendas da composição o tiverem válido (RN-08).
 - **Geometria do talhão**: além das validações da Fase 1, sobreposição com talhão de outro produtor gera alerta; acima de 4 ha, ponto não vale para a EUDR.
 - **Checagem de desmatamento** (`/conformidade`): provedor de demonstração (sempre "sem alerta") ou importação do laudo em PDF. A checagem vale para a versão do desenho; mudou a geometria, é preciso refazer.
 - **RN-18**: contrato que exige EUDR não reserva lote com talhão sem geometria válida ou com alerta, e o embarque não finaliza com pendência no dossiê.

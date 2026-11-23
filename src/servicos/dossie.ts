@@ -98,7 +98,7 @@ export async function montarDossie(tx: Tx, movimentoId: string) {
   // Certificados vendidos precisam estar válidos, na data do embarque, em todas as fazendas da composição.
   const fazendaIds = [...new Set(talhoes.map((t) => t.fazendaId))];
   const fcs = await tx.fazendaCertificado.findMany({ where: { fazendaId: { in: fazendaIds } }, include: { certificado: { select: { codigo: true } }, fazenda: { select: { codigo: true } } } });
-  const validoEm = (f: (typeof fcs)[number]) => certificadoValidoEm({ fazendaId: f.fazendaId, certificadoId: f.certificadoId, validadeInicio: iso(f.validadeInicio)!, validadeFim: iso(f.validadeFim)!, status: f.status }, data);
+  const validoEm = (f: (typeof fcs)[number]) => certificadoValidoEm({ fazendaId: f.fazendaId, certificadoId: f.certificadoId, validadeInicio: iso(f.validadeInicio)!, validadeFim: iso(f.validadeFim)!, status: f.status, parcial: f.parcial }, data);
   const nomesCert = new Map((await tx.certificado.findMany({ where: { id: { in: det.certificadosVendidos } } })).map((c) => [c.id, c.codigo]));
   const vendidos = esquemasDe(det.certificadosVendidos.map((id) => nomesCert.get(id) ?? ''));
   for (const fid of fazendaIds) {
@@ -120,7 +120,7 @@ export async function montarDossie(tx: Tx, movimentoId: string) {
     total_kg: kgJson(lotes.reduce((s, l) => s.plus(l.kg), new Decimal(0))),
     talhoes: linhas,
     lotes: lotes.map((l) => ({ codigo: l.lote.codigo, kg: kgJson(l.kg), certificados: l.lote.certificados.map((c) => c.certificado.codigo).sort() })),
-    certificados: fcs.map((f) => ({ fazenda: f.fazenda.codigo, certificado: f.certificado.codigo, numero: f.numero, validade_fim: iso(f.validadeFim)!, valido: validoEm(f) }))
+    certificados: fcs.map((f) => ({ fazenda: f.fazenda.codigo, certificado: f.certificado.codigo, numero: f.numero, validade_fim: iso(f.validadeFim)!, valido: validoEm(f), parcial: f.parcial }))
       .sort((a, b) => a.fazenda.localeCompare(b.fazenda) || a.certificado.localeCompare(b.certificado)),
     cadeia: await cadeia(tx, lotes.map((l) => l.lote.id)),
     pendencias,

@@ -112,7 +112,11 @@ const DEF = {
     rotulo: 'fazenda',
     campoAtivo: 'ativo',
     ordem: [{ codigo: 'asc' }],
-    incluir: { produtor: { select: { id: true, nome: true, cpfCnpj: true } }, _count: { select: { talhoes: true } } },
+    incluir: {
+      produtor: { select: { id: true, nome: true, cpfCnpj: true } },
+      _count: { select: { talhoes: true } },
+      certificados: { select: { status: true, validadeInicio: true, validadeFim: true, parcial: true, certificado: { select: { codigo: true } } } },
+    },
     esquema: z.object({
       codigo: texto(4),
       nome: texto(120),

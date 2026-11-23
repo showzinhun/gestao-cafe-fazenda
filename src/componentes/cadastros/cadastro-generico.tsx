@@ -62,7 +62,7 @@ export function CadastroGenerico({ recurso, registros, opcoes, podeEditar }: { r
         </label>
         {podeEditar && !editando ? (
           <Botao className="ml-auto" onClick={() => { setMsg(null); setEditando('novo'); }}>
-            <Plus className="size-4" /> Novo {cfg.singular}
+            <Plus className="size-4" /> {cfg.feminino ? 'Nova' : 'Novo'} {cfg.singular}
           </Botao>
         ) : null}
       </div>
@@ -149,7 +149,7 @@ function Formulario({ recurso, registro, opcoes, aoFechar }: { recurso: string; 
 
   return (
     <form onSubmit={enviar} className="sombra grid gap-4 rounded-xl border border-linha bg-superficie p-5">
-      <h2 className="font-display text-[19px] font-semibold">{registro ? `Editar ${cfg.singular}` : `Novo ${cfg.singular}`}</h2>
+      <h2 className="font-display text-[19px] font-semibold">{registro ? `Editar ${cfg.singular}` : `${cfg.feminino ? 'Nova' : 'Novo'} ${cfg.singular}`}</h2>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
         {cfg.campos.map((c) => (
           <Campo key={c.nome} rotulo={c.rotulo + (c.obrigatorio ? ' *' : '')} dica={c.dica} className={cn(c.largura === 'cheia' && 'col-span-full', erro?.campo === c.nome && '[&_input]:border-erro [&_select]:border-erro')}>

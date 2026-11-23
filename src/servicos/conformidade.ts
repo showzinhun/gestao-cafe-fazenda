@@ -46,33 +46,86 @@ export async function obterArquivo(ctx: Contexto, id: string) {
 
 // ---------------------------------------------------------------- certificados da fazenda (§10)
 
+const marcado = z.preprocess((v) => v === true || v === 'true' || v === 'on' || v === '1', z.boolean());
 const certificadoFazendaSchema = z.object({
   certificadoId: z.string().uuid('Escolha o certificado.'),
+  /** ID/número do certificado, quando houver (nem todo certificado tem). */
   numero: z.string().trim().max(60).optional().nullable(),
   validadeInicio: dataTexto,
   validadeFim: dataTexto,
+  /** Certificação de só parte da fazenda (ex.: "UTZ parcial"). */
+  parcial: marcado.optional().default(false),
 });
+type EntradaCertificado = z.input<typeof certificadoFazendaSchema>;
+const alteracaoCertificadoSchema = certificadoFazendaSchema.omit({ certificadoId: true });
 
-export async function adicionarCertificadoFazenda(ctx: Contexto, fazendaId: string, entrada: z.input<typeof certificadoFazendaSchema>, arquivo?: ArquivoEnviado | null) {
+const br = (d: Date | string) => (typeof d === 'string' ? d : iso(d)!).split('-').reverse().join('/');
+
+/** Dois certificados do mesmo tipo na mesma fazenda não podem ter validades que se cruzam (renovar = período novo). */
+async function exigirSemSobreposicao(tx: Tx, fazenda: { id: string; codigo: string }, cert: { id: string; codigo: string }, inicio: string, fim: string, ignorarId?: string) {
+  const outros = await tx.fazendaCertificado.findMany({ where: { fazendaId: fazenda.id, certificadoId: cert.id, status: { not: 'SUSPENSO' }, ...(ignorarId ? { id: { not: ignorarId } } : {}) } });
+  const choque = outros.find((o) => iso(o.validadeInicio)! <= fim && inicio <= iso(o.validadeFim)!);
+  if (choque)
+    throw new ErroValidacao(`A fazenda ${fazenda.codigo} já tem ${cert.codigo} de ${br(choque.validadeInicio)} a ${br(choque.validadeFim)}. Edite esse registro ou suspenda-o antes de cadastrar outro no mesmo período.`, 'validadeInicio');
+}
+
+/** Cadastra vários certificados da fazenda de uma vez (tudo ou nada). Cada um com ID opcional, validade, parcial e PDF. */
+export async function adicionarCertificadosFazenda(ctx: Contexto, fazendaId: string, itens: { entrada: EntradaCertificado; arquivo?: ArquivoEnviado | null }[]) {
   exigir(ctx, 'cadastros.editar');
-  const d = certificadoFazendaSchema.parse(entrada);
-  if (d.validadeFim < d.validadeInicio) throw new ErroValidacao('O fim da validade deve ser depois do início.', 'validadeFim');
+  if (!itens.length) throw new ErroValidacao('Marque ao menos um certificado.', 'certificadoId');
+  const lista = itens.map((i) => ({ d: certificadoFazendaSchema.parse(i.entrada), arquivo: i.arquivo ?? null }));
+  for (const { d } of lista) if (d.validadeFim < d.validadeInicio) throw new ErroValidacao('O fim da validade deve ser depois do início.', 'validadeFim');
+  if (new Set(lista.map((l) => l.d.certificadoId)).size !== lista.length) throw new ErroValidacao('O mesmo certificado foi marcado duas vezes.', 'certificadoId');
   if (!ehUuid(fazendaId)) throw new ErroNaoEncontrado('Fazenda não encontrada.');
   return comTransacao(ctx, async (tx) => {
     const fazenda = await tx.fazenda.findFirst({ where: { id: fazendaId } });
     if (!fazenda) throw new ErroNaoEncontrado('Fazenda não encontrada.');
-    const cert = await tx.certificado.findFirst({ where: { id: d.certificadoId, ativo: true } });
-    if (!cert) throw new ErroNaoEncontrado('Certificado não encontrado.');
-    const arq = arquivo ? await salvarArquivo(tx, ctx, arquivo) : null;
-    const fc = await tx.fazendaCertificado.create({
-      data: {
-        empresaId: ctx.empresaId, fazendaId, certificadoId: cert.id, numero: d.numero || null, validadeInicio: comoData(d.validadeInicio), validadeFim: comoData(d.validadeFim),
-        arquivoId: arq?.id ?? null, status: 'VALIDO', criadoPor: ctx.usuarioId,
-      },
-    });
-    await auditar(tx, ctx, { entidade: 'fazenda_certificado', entidadeId: fc.id, acao: 'CRIAR', depois: { fazenda: fazenda.codigo, certificado: cert.codigo, ...d, arquivo: arq?.nome ?? null } });
+    const criados = [];
+    for (const { d, arquivo } of lista) {
+      const cert = await tx.certificado.findFirst({ where: { id: d.certificadoId, ativo: true } });
+      if (!cert) throw new ErroNaoEncontrado('Certificado não encontrado.');
+      await exigirSemSobreposicao(tx, fazenda, cert, d.validadeInicio, d.validadeFim);
+      const arq = arquivo ? await salvarArquivo(tx, ctx, arquivo) : null;
+      const fc = await tx.fazendaCertificado.create({
+        data: {
+          empresaId: ctx.empresaId, fazendaId, certificadoId: cert.id, numero: d.numero || null, validadeInicio: comoData(d.validadeInicio), validadeFim: comoData(d.validadeFim),
+          parcial: d.parcial, arquivoId: arq?.id ?? null, status: 'VALIDO', criadoPor: ctx.usuarioId,
+        },
+      });
+      await auditar(tx, ctx, { entidade: 'fazenda_certificado', entidadeId: fc.id, acao: 'CRIAR', depois: { fazenda: fazenda.codigo, certificado: cert.codigo, ...d, arquivo: arq?.nome ?? null } });
+      criados.push(fc);
+    }
     await verificarCertificados(tx, ctx.empresaId);
-    return fc;
+    return criados;
+  });
+}
+
+export async function adicionarCertificadoFazenda(ctx: Contexto, fazendaId: string, entrada: EntradaCertificado, arquivo?: ArquivoEnviado | null) {
+  return (await adicionarCertificadosFazenda(ctx, fazendaId, [{ entrada, arquivo }]))[0]!;
+}
+
+/** Corrige o ID, a validade e o "parcial" de um certificado já cadastrado; um PDF novo substitui o anterior (o antigo fica guardado). */
+export async function alterarCertificadoFazenda(ctx: Contexto, id: string, entrada: z.input<typeof alteracaoCertificadoSchema>, arquivo?: ArquivoEnviado | null) {
+  exigir(ctx, 'cadastros.editar');
+  if (!ehUuid(id)) throw new ErroNaoEncontrado('Certificado não encontrado.');
+  const d = alteracaoCertificadoSchema.parse(entrada);
+  if (d.validadeFim < d.validadeInicio) throw new ErroValidacao('O fim da validade deve ser depois do início.', 'validadeFim');
+  return comTransacao(ctx, async (tx) => {
+    const fc = await tx.fazendaCertificado.findFirst({ where: { id }, include: { fazenda: { select: { id: true, codigo: true } }, certificado: { select: { id: true, codigo: true } } } });
+    if (!fc) throw new ErroNaoEncontrado('Certificado não encontrado.');
+    if (fc.status !== 'SUSPENSO') await exigirSemSobreposicao(tx, fc.fazenda, fc.certificado, d.validadeInicio, d.validadeFim, id);
+    const arq = arquivo ? await salvarArquivo(tx, ctx, arquivo) : null;
+    const r = await tx.fazendaCertificado.update({
+      where: { id },
+      data: { numero: d.numero || null, validadeInicio: comoData(d.validadeInicio), validadeFim: comoData(d.validadeFim), parcial: d.parcial, ...(arq ? { arquivoId: arq.id } : {}), alteradoPor: ctx.usuarioId },
+    });
+    await auditar(tx, ctx, {
+      entidade: 'fazenda_certificado', entidadeId: id, acao: 'ALTERAR',
+      antes: { numero: fc.numero, validadeInicio: iso(fc.validadeInicio), validadeFim: iso(fc.validadeFim), parcial: fc.parcial },
+      depois: { ...d, numero: d.numero || null, ...(arq ? { arquivo: arq.nome } : {}) },
+    });
+    await verificarCertificados(tx, ctx.empresaId);
+    return r;
   });
 }
 
@@ -102,7 +155,7 @@ export async function listarCertificadosFazenda(ctx: Contexto, fazendaId?: strin
     return linhas.map((c) => {
       const base = { status: c.status, validadeInicio: iso(c.validadeInicio)!, validadeFim: iso(c.validadeFim)! };
       return {
-        id: c.id, fazenda: c.fazenda, certificado: c.certificado.codigo, nomeCertificado: c.certificado.nome, numero: c.numero, ...base,
+        id: c.id, fazenda: c.fazenda, certificado: c.certificado.codigo, nomeCertificado: c.certificado.nome, numero: c.numero, parcial: c.parcial, ...base,
         situacao: situacaoCertificado(base, hoje), diasRestantes: diasEntre(hoje, base.validadeFim), motivoStatus: c.motivoStatus, arquivo: c.arquivo,
       };
     });
@@ -223,7 +276,7 @@ export async function painelConformidade(ctx: Contexto) {
     });
     const certificados = (await tx.fazendaCertificado.findMany({ include: { certificado: { select: { codigo: true } }, fazenda: { select: { id: true, codigo: true } } }, orderBy: { validadeFim: 'asc' } })).map((c) => {
       const base = { status: c.status, validadeInicio: iso(c.validadeInicio)!, validadeFim: iso(c.validadeFim)! };
-      return { id: c.id, fazenda: c.fazenda, certificado: c.certificado.codigo, numero: c.numero, ...base, situacao: situacaoCertificado(base, hoje), diasRestantes: diasEntre(hoje, base.validadeFim) };
+      return { id: c.id, fazenda: c.fazenda, certificado: c.certificado.codigo, numero: c.numero, parcial: c.parcial, ...base, situacao: situacaoCertificado(base, hoje), diasRestantes: diasEntre(hoje, base.validadeFim) };
     });
     // Dossiês pendentes: embarques carregados ainda abertos com pendências no último dossiê, ou finalizados sem DDS.
     const embarques = await tx.embarqueDetalhe.findMany({

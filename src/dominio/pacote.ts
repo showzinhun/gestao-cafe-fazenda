@@ -97,7 +97,7 @@ export interface ConteudoDossie {
   total_kg: number;
   talhoes: TalhaoDossie[];
   lotes: { codigo: string; kg: number; certificados: string[] }[];
-  certificados: { fazenda: string; certificado: string; numero: string | null; validade_fim: string; valido: boolean }[];
+  certificados: { fazenda: string; certificado: string; numero: string | null; validade_fim: string; valido: boolean; parcial?: boolean }[];
   cadeia: { movimento: string; etapa: string; data: string; status: string }[];
   pendencias: Pendencia[];
   hash_sha256?: string;

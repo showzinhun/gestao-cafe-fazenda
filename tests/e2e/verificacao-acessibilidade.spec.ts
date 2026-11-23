@@ -43,6 +43,12 @@ test('telas da empresa sem violações graves de acessibilidade', async ({ page 
     await page.waitForURL((u) => u.pathname !== lista);
     await conferir(page, page.url());
   }
+  // Formulário de certificados da fazenda aberto.
+  await page.goto('/cadastros/fazendas');
+  await page.getByRole('link', { name: /^NS$/ }).click();
+  await page.getByRole('button', { name: 'Cadastrar certificados' }).click();
+  await page.getByRole('checkbox', { name: /^AAA\s/ }).check();
+  await conferir(page, 'fazenda: certificados (formulário aberto)');
   await page.goto('/etapas');
   await page.getByRole('link', { name: /Armazém/ }).first().click();
   await conferir(page, page.url());

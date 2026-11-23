@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import Decimal from 'decimal.js';
 import type { Polygon } from 'geojson';
 import { ErroRegra } from '@/dominio/erros';
-import { esquemasDe, exigirMotivoQuebra, exigirMotivoRebaixamento, exigirVenda, faixaVencimento, limiteQuebraServico, rebaixamentos, situacaoCertificado } from '@/dominio/certificacao';
+import { esquemasDe, exigirMotivoQuebra, exigirMotivoRebaixamento, exigirVenda, faixaVencimento, limiteQuebraServico, rebaixamentos, rotuloCertificacao, situacaoCertificado } from '@/dominio/certificacao';
+import { certificadoValidoEm, certificadosDaFazenda } from '@/dominio/lote';
 import { exigirDossieSemPendencias, exigirLoteEudr, pendenciasDoTalhao, situacaoEudr, sobreposicoes, type TalhaoEudr } from '@/dominio/eudr';
 import { codigoEmbarque, composicaoDoEmbarque, hashConteudo, jsonCanonico, montarPacote } from '@/dominio/pacote';
 
@@ -134,5 +135,27 @@ describe('dossiê e pacote (§10, §17)', () => {
     expect(p.hash_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(hashConteudo(p)).toBe(p.hash_sha256);
     expect(hashConteudo({ ...p, notas: [] })).not.toBe(p.hash_sha256);
+  });
+});
+
+describe('certificados da fazenda: parcial e rótulo', () => {
+  const base = { validadeInicio: '2026-01-01', validadeFim: '2026-12-31', status: 'VALIDO' as const };
+
+  it('RN-08 certificação parcial não é herdada pelos lotes; a inteira é', () => {
+    expect(certificadoValidoEm({ fazendaId: 'f', certificadoId: 'utz', ...base }, '2026-06-01')).toBe(true);
+    expect(certificadoValidoEm({ fazendaId: 'f', certificadoId: 'utz', ...base, parcial: true }, '2026-06-01')).toBe(false);
+    const lista = [{ fazendaId: 'f', certificadoId: 'utz', ...base, parcial: true }, { fazendaId: 'f', certificadoId: 'rfa', ...base }];
+    expect([...certificadosDaFazenda('f', lista, '2026-06-01')]).toEqual(['rfa']);
+  });
+
+  it('rótulo no formato da lista do negócio: combinação, parcial e sem certificado', () => {
+    const c = (codigo: string, extra: Record<string, unknown> = {}) => ({ codigo, ...base, ...extra });
+    const hoje = '2026-06-01';
+    expect(rotuloCertificacao([c('RFA'), c('AAA'), c('CAFE'), c('4C')], hoje)).toBe('4C + AAA + CAFE + RFA');
+    expect(rotuloCertificacao([c('UTZ', { parcial: true })], hoje)).toBe('UTZ (parcial)');
+    expect(rotuloCertificacao([c('RFA'), c('UTZ', { parcial: true })], hoje)).toBe('RFA + UTZ (parcial)');
+    expect(rotuloCertificacao([], hoje)).toBe('Sem certificado');
+    // vencido, suspenso ou ainda não iniciado não entram
+    expect(rotuloCertificacao([c('RFA', { validadeFim: '2026-05-31' }), c('AAA', { status: 'SUSPENSO' }), c('4C', { validadeInicio: '2026-07-01' })], hoje)).toBe('Sem certificado');
   });
 });

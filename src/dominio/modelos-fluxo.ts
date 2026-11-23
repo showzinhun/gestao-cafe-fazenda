@@ -123,5 +123,8 @@ export const CERTIFICADOS_PADRAO = [
   ['RFA', 'Rainforest Alliance'],
   ['AAA', 'Nespresso AAA'],
   ['4C', '4C'],
+  ['UTZ', 'UTZ Certified'],
+  ['CAFE', 'C.A.F.E. Practices'],
+  ['TAG', 'TAG Cerrado'],
   ['ORG', 'Orgânico'],
 ] as const;
