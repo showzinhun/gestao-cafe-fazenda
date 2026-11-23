@@ -142,7 +142,7 @@ export async function certificadosAtivos(tx: Tx, loteIds: string[]): Promise<Map
 
 export async function certificadosDeFazendas(tx: Tx, fazendaIds: string[]): Promise<CertificadoFazenda[]> {
   const linhas = await tx.fazendaCertificado.findMany({ where: { fazendaId: { in: [...new Set(fazendaIds)] } } });
-  return linhas.map((c) => ({ fazendaId: c.fazendaId, certificadoId: c.certificadoId, validadeInicio: dataLocal(c.validadeInicio), validadeFim: dataLocal(c.validadeFim), status: c.status }));
+  return linhas.map((c) => ({ fazendaId: c.fazendaId, certificadoId: c.certificadoId, validadeInicio: dataLocal(c.validadeInicio), validadeFim: dataLocal(c.validadeFim), status: c.status, parcial: c.parcial }));
 }
 
 // ---------------------------------------------------------------- fluxo (RN-16) e unidades

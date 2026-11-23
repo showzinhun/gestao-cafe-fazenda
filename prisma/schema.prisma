@@ -563,6 +563,8 @@ model FazendaCertificado {
   arquivoUrl     String?                  @map("arquivo_url")
   arquivoId      String?                  @map("arquivo_id") @db.Uuid
   motivoStatus   String?                  @map("motivo_status")
+  /// Certificação parcial (só parte da fazenda): fica registrada, mas não é herdada pelos lotes (RN-08).
+  parcial        Boolean                  @default(false)
   status         StatusCertificadoFazenda @default(VALIDO)
   criadoEm       DateTime                 @default(now()) @map("criado_em") @db.Timestamptz(6)
   criadoPor      String?                  @map("criado_por") @db.Uuid

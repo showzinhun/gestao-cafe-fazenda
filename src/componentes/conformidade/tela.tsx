@@ -9,6 +9,7 @@ import { Campo, Entrada } from '@/componentes/ui/campo';
 import { Selecao } from '@/componentes/ui/selecao';
 import { Aviso } from '@/componentes/ui/aviso';
 import { Indicador } from '@/componentes/ui/cartao';
+import { Selo } from '@/componentes/ui/selo';
 import { Abas, Documentos } from '@/componentes/operacao/comum';
 import { SeloCertificado, SeloChecagem, SeloEudr } from './selos';
 
@@ -122,7 +123,7 @@ export function TelaConformidade({ painel, podeEditar, hoje }: { painel: Painel;
               {painel.certificados.map((c) => (
                 <tr key={c.id} className="border-t border-linha">
                   <td className="py-2"><Link href={`/cadastros/fazendas/${c.fazenda.id}`} className="font-mono font-semibold text-destaque hover:underline">{c.fazenda.codigo}</Link></td>
-                  <td>{c.certificado}</td><td>{c.numero ?? '—'}</td><td>{data(c.validadeInicio)} a {data(c.validadeFim)}</td><td><SeloCertificado situacao={c.situacao} dias={c.diasRestantes} /></td>
+                  <td>{c.certificado}</td><td>{c.numero ?? '—'}</td><td>{data(c.validadeInicio)} a {data(c.validadeFim)}</td><td><span className="inline-flex flex-wrap gap-1"><SeloCertificado situacao={c.situacao} dias={c.diasRestantes} />{c.parcial ? <Selo tipo="aviso">Parcial</Selo> : null}</span></td>
                 </tr>
               ))}
               {!painel.certificados.length ? <tr><td colSpan={5} className="py-4 text-tinta-2">Nenhum certificado cadastrado.</td></tr> : null}

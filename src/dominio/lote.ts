@@ -92,10 +92,12 @@ export interface CertificadoFazenda {
   validadeInicio: string; // aaaa-mm-dd
   validadeFim: string;
   status: 'VALIDO' | 'VENCIDO' | 'SUSPENSO';
+  /** Certificação de só parte da fazenda: registrada, mas não herdada pelos lotes (não dá para provar a parte). */
+  parcial?: boolean;
 }
 
 export function certificadoValidoEm(c: CertificadoFazenda, data: string): boolean {
-  return c.status !== 'SUSPENSO' && c.validadeInicio <= data && data <= c.validadeFim;
+  return c.status !== 'SUSPENSO' && !c.parcial && c.validadeInicio <= data && data <= c.validadeFim;
 }
 
 /** Certificados válidos de uma fazenda numa data. */

@@ -109,3 +109,17 @@ export function exigirMotivoQuebra(p: { percQuebra: Decimal.Value | null; limite
   }
   return m;
 }
+
+// ---------------------------------------------------------------- rótulo da certificação da fazenda
+
+/**
+ * Certificação da fazenda no formato das listas do negócio: "RFA + AAA + 4C", "UTZ (parcial)", "Sem certificado".
+ * Entram os certificados vigentes hoje (não suspensos, dentro da validade). Os parciais vêm marcados.
+ */
+export function rotuloCertificacao(certs: { codigo: string; status: string; validadeInicio: string; validadeFim: string; parcial?: boolean }[], hoje: string): string {
+  const vigentes = certs.filter((c) => situacaoCertificado(c, hoje) === 'VALIDO');
+  const inteiros = [...new Set(vigentes.filter((c) => !c.parcial).map((c) => c.codigo))].sort();
+  const parciais = [...new Set(vigentes.filter((c) => c.parcial).map((c) => c.codigo))].filter((c) => !inteiros.includes(c)).sort();
+  const partes = [...inteiros, ...parciais.map((c) => `${c} (parcial)`)];
+  return partes.length ? partes.join(' + ') : 'Sem certificado';
+}

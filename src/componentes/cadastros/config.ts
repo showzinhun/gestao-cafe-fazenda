@@ -1,4 +1,6 @@
 /** Telas genéricas de cadastro (§12, item 4): colunas e campos de cada recurso. Só apresentação. */
+import { rotuloCertificacao } from '@/dominio/certificacao';
+
 export type Opcao = { valor: string; rotulo: string; grupo?: string };
 export type Registro = Record<string, unknown> & { id: string };
 
@@ -26,10 +28,21 @@ export interface Coluna {
 export interface ConfigCadastro {
   titulo: string;
   singular: string;
+  /** Concordância do botão "Novo/Nova ...". */
+  feminino?: boolean;
   descricao: string;
   campoAtivo?: 'ativo' | 'ativa';
   colunas: Coluna[];
   campos: CampoForm[];
+}
+
+/** Certificação da fazenda no formato das listas do negócio ("RFA + AAA", "UTZ (parcial)", "Sem certificado"). */
+function certificacaoDaFazenda(r: Registro): string {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  const lista = ((r.certificados as { status: string; validadeInicio: string; validadeFim: string; parcial: boolean; certificado: { codigo: string } }[] | undefined) ?? []).map((c) => ({
+    codigo: c.certificado.codigo, status: c.status, validadeInicio: String(c.validadeInicio).slice(0, 10), validadeFim: String(c.validadeFim).slice(0, 10), parcial: c.parcial,
+  }));
+  return rotuloCertificacao(lista, hoje);
 }
 
 const t = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v));
@@ -49,13 +62,15 @@ export const CADASTROS: Record<string, ConfigCadastro> = {
   fazendas: {
     titulo: 'Fazendas',
     singular: 'fazenda',
-    descricao: 'Cada fazenda tem um código de 2 a 4 letras, usado no código do lote (§8). Abra a fazenda para cadastrar os talhões no mapa.',
+    feminino: true,
+    descricao: 'Cada fazenda tem um código de 2 a 4 letras, usado no código do lote (§8). Abra a fazenda para cadastrar os talhões no mapa e os certificados que ela possui.',
     colunas: [
       { rotulo: 'Código', valor: (r) => t(r.codigo), mono: true, link: (r) => `/cadastros/fazendas/${r.id}` },
       { rotulo: 'Fazenda', valor: (r) => t(r.nome) },
       { rotulo: 'Produtor', valor: (r) => sub(r, 'produtor', 'nome') },
       { rotulo: 'Município / UF', valor: (r) => [r.municipio, r.uf].filter(Boolean).join(' / ') || '—' },
       { rotulo: 'CAR', valor: (r) => t(r.car), mono: true },
+      { rotulo: 'Certificados', valor: certificacaoDaFazenda },
       { rotulo: 'Talhões', valor: (r) => t((r._count as { talhoes?: number } | undefined)?.talhoes ?? 0), num: true },
     ],
     campos: [
@@ -92,6 +107,7 @@ export const CADASTROS: Record<string, ConfigCadastro> = {
   safras: {
     titulo: 'Safras',
     singular: 'safra',
+    feminino: true,
     descricao: 'Ano agrícola. Obrigatória em todo movimento (RN-13).',
     campoAtivo: 'ativa',
     colunas: [
@@ -121,6 +137,7 @@ export const CADASTROS: Record<string, ConfigCadastro> = {
   peneiras: {
     titulo: 'Peneiras',
     singular: 'peneira',
+    feminino: true,
     descricao: 'Classificação por tamanho do grão, usada no estoque e no serviço.',
     colunas: [
       { rotulo: 'Código', valor: (r) => t(r.codigo), mono: true },

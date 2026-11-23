@@ -2,9 +2,9 @@
 import { revalidatePath } from 'next/cache';
 import { contextoDaSessao } from '@/lib/contexto';
 import { falha, type ResultadoAcao } from '@/lib/resultado-acao';
-import { arquivoDoForm, camposDoForm } from '@/lib/formulario-arquivo';
+import { arquivoDoForm, camposDoForm, certificadosDoForm } from '@/lib/formulario-arquivo';
 import { ErroNaoEncontrado } from '@/dominio/erros';
-import { adicionarCertificadoFazenda, alterarStatusCertificadoFazenda, checarTalhao, importarChecagem } from '@/servicos/conformidade';
+import { adicionarCertificadosFazenda, alterarCertificadoFazenda, alterarStatusCertificadoFazenda, checarTalhao, importarChecagem } from '@/servicos/conformidade';
 
 /** Ações de conformidade (Fase 7): finas, só chamam os serviços (regra 2). */
 
@@ -29,8 +29,14 @@ export const acaoChecarTalhao = async (talhaoId: string) =>
 export const acaoImportarChecagem = async (talhaoId: string, f: FormData) =>
   executar('Resultado importado.', async () => void (await importarChecagem(await ctx(), talhaoId, camposDoForm(f) as never, await arquivoDoForm(f))));
 
-export const acaoCertificadoFazenda = async (fazendaId: string, f: FormData) =>
-  executar('Certificado cadastrado.', async () => void (await adicionarCertificadoFazenda(await ctx(), fazendaId, camposDoForm(f) as never, await arquivoDoForm(f))));
+export const acaoCertificadosFazenda = async (fazendaId: string, f: FormData) =>
+  executar('Certificados cadastrados.', async () => (await adicionarCertificadosFazenda(await ctx(), fazendaId, await certificadosDoForm(f))).length);
+
+export const acaoAlterarCertificadoFazenda = async (id: string, f: FormData) =>
+  executar('Certificado atualizado.', async () => {
+    const c = camposDoForm(f);
+    await alterarCertificadoFazenda(await ctx(), id, { numero: c.numero || null, validadeInicio: c.validadeInicio ?? '', validadeFim: c.validadeFim ?? '', parcial: f.get('parcial') === 'on' }, await arquivoDoForm(f));
+  });
 
 export const acaoStatusCertificado = async (id: string, status: 'VALIDO' | 'SUSPENSO', motivo?: string) =>
   executar(status === 'SUSPENSO' ? 'Certificado suspenso.' : 'Certificado reativado.', async () => void (await alterarStatusCertificadoFazenda(await ctx(), id, status, motivo)));

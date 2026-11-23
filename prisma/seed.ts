@@ -10,6 +10,7 @@ import { PrismaClient, type Perfil } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { SEED } from './dados-seed';
 import { criarEmpresa } from '../src/servicos/plataforma';
+import { CERTIFICADOS_PADRAO } from '../src/dominio/modelos-fluxo';
 import { processarGeometria } from '../src/dominio/geometria';
 
 const db = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL });
@@ -96,6 +97,10 @@ async function main() {
       update: {},
       create: { id: c.id, empresaId: alfa, turmaId: c.turma, nome: c.nome, apelido: c.apelido, cpfCifrado: cifrar(cpf), cpfMascara: mascararCpf(cpf), cpfHash: impressao(`cpf:${cpf}`), pixCifrado: cifrar(c.pix), pixMascara: mascararPix(c.pix) },
     });
+  }
+  // Catálogo de certificados padrão também nas empresas já existentes (o catálogo cresceu: UTZ, C.A.F.E. Practices, TAG Cerrado).
+  for (const e of Object.values(SEED.empresas)) {
+    await db.certificado.createMany({ data: CERTIFICADOS_PADRAO.map(([codigo, nome]) => ({ empresaId: e.id, codigo, nome })), skipDuplicates: true });
   }
   // §15: RFA válido para NS; AAA inexistente.
   const rfa = await db.certificado.findFirstOrThrow({ where: { empresaId: alfa, codigo: 'RFA' } });
