@@ -20,7 +20,12 @@ ENV
 fi
 
 echo "==> Instalando dependências"
-npm ci --no-audit --no-fund
+if [ -d node_modules ]; then
+  # Atualização: `npm install` só acrescenta o que mudou e não apaga node_modules (o `npm ci` apagaria e derrubaria o sistema que está rodando).
+  npm install --no-audit --no-fund
+else
+  npm ci --no-audit --no-fund
+fi
 npx prisma generate
 
 set -a; . ./.env; set +a
