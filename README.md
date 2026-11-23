@@ -8,6 +8,12 @@ Plataforma multiempresa (web + PWA) para a fazenda acompanhar o café do talhão
 - [docs/DUVIDAS.md](docs/DUVIDAS.md): dúvidas e decisões tomadas durante a implementação.
 - [docs/LEGADO_SANKHYA.md](docs/LEGADO_SANKHYA.md): contexto do sistema antigo (só referência).
 
+## Testar no navegador (GitHub Codespaces)
+
+Sem instalar nada: no GitHub, **Code → Codespaces → Create codespace on main**. Em 3 a 5 minutos o ambiente sobe o Postgres,
+cria as tabelas, carrega as empresas fictícias e o café de exemplo (passos 3 a 8 do §15) e abre o sistema na porta 3000.
+Os usuários e um roteiro de teste estão em [.devcontainer/LEIA-ME.md](.devcontainer/LEIA-ME.md). O endereço é privado; dados só fictícios.
+
 ## Rodar localmente
 
 Requisitos: Node 22 e Docker.

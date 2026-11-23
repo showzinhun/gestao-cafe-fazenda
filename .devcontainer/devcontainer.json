@@ -1,0 +1,17 @@
+{
+  "name": "Gestão do Café (teste no navegador)",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Sistema", "onAutoForward": "openBrowser" }
+  },
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "postCreateCommand": "bash .devcontainer/preparar.sh",
+  "postAttachCommand": { "sistema": "bash .devcontainer/iniciar.sh" },
+  "customizations": {
+    "codespaces": { "openFiles": [".devcontainer/LEIA-ME.md"] }
+  }
+}
