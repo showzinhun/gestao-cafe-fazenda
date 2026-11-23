@@ -1,0 +1,26 @@
+# Ambiente de teste no navegador (GitHub Codespaces): a aplicação e o Postgres 16, com dados fictícios.
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cafe
+    volumes:
+      - cafe-db:/var/lib/postgresql/data
+      - ../docker/criar-banco-teste.sql:/docker-entrypoint-initdb.d/01-banco-teste.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+volumes:
+  cafe-db:
